@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/codeoops-dev/deprisk/schemas/scan-result.v1.schema.json",
+  "title": "DepRisk scan result (v1)",
+  "description": "Output of 'deprisk scan --format json': the resolved dependency graph of every project found. Deterministic: contains no timestamps and no machine-specific absolute paths.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "tool", "ecosystem", "projects"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ecosystem": { "enum": ["nuget"] },
+    "projects": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/project" }
+    }
+  },
+  "$defs": {
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "assetsFile", "targets"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "assetsFile": {
+          "description": "Path of the assets file relative to the scanned directory, with forward slashes.",
+          "type": "string",
+          "minLength": 1
+        },
+        "targets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/target" }
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "packages"],
+      "properties": {
+        "name": {
+          "description": "Target framework, optionally with a runtime identifier, for example 'net10.0' or 'net10.0/win-x64'.",
+          "type": "string",
+          "minLength": 1
+        },
+        "packages": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/package" }
+        }
+      }
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "isDirect", "dependencies"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "isDirect": {
+          "description": "True if the project references this package itself; false if it is only pulled in by other packages.",
+          "type": "boolean"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "range"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "range": {
+                "description": "Version range the package declares for this dependency, in NuGet notation.",
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

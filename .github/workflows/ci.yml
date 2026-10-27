@@ -38,3 +38,11 @@ jobs:
 
       - name: Smoke test the CLI
         run: dotnet run --no-build -c Release --project src/DepRisk.Cli -- --version
+
+      # Contract test: DepRisk scans its own restored projects, and the JSON must match the published schema.
+      - name: Scan output matches schemas/scan-result.v1.schema.json
+        if: runner.os == 'Linux'
+        run: |
+          dotnet run --no-build -c Release --project src/DepRisk.Cli -- scan . --format json --out scan-result.json
+          python3 -m pip install --user check-jsonschema==0.38.2
+          python3 -m check_jsonschema --schemafile schemas/scan-result.v1.schema.json scan-result.json

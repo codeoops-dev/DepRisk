@@ -4,9 +4,10 @@ Every file DepRisk writes for other tools or for later runs is described here wi
 
 | Schema | Used by | Status |
 |---|---|---|
+| [`scan-result.v1.schema.json`](scan-result.v1.schema.json) | `deprisk scan --format json` | implemented |
 | [`audit-entry.v1.schema.json`](audit-entry.v1.schema.json) | audit log (`.deprisk/audit.log`, one JSON object per line) | draft |
 
-Planned: `scan-result`, `plan`, `reach-request` / `reach-response` (analyzer protocol), `bundle-manifest`.
+Planned: `plan`, `reach-request` / `reach-response` (analyzer protocol), `bundle-manifest`.
 
 ## Rules
 

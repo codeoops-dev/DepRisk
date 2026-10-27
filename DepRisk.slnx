@@ -8,5 +8,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/DepRisk.Cli.Tests/DepRisk.Cli.Tests.csproj" />
     <Project Path="tests/DepRisk.Core.Tests/DepRisk.Core.Tests.csproj" />
+    <Project Path="tests/DepRisk.Data.Tests/DepRisk.Data.Tests.csproj" />
   </Folder>
 </Solution>

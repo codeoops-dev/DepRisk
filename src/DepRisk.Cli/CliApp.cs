@@ -13,6 +13,11 @@ internal static class CliApp
         {
             return (int)Dispatch(args, output, error);
         }
+        catch (InvalidInputException ex)
+        {
+            error.WriteLine($"{ProductInfo.CommandName}: {ex.Message}");
+            return (int)ExitCode.InvalidInput;
+        }
         catch (Exception ex)
         {
             error.WriteLine($"{ProductInfo.CommandName}: internal error: {ex.GetType().Name}: {ex.Message}");
@@ -53,6 +58,9 @@ internal static class CliApp
             case "doctor":
                 return DoctorCommand.Run(output);
 
+            case "scan":
+                return ScanCommand.Run(args[1..], output);
+
             default:
                 error.WriteLine($"{ProductInfo.CommandName}: unknown command '{command}'. Run '{ProductInfo.CommandName} --help'.");
                 return ExitCode.InvalidInput;
@@ -67,11 +75,14 @@ internal static class CliApp
         output.WriteLine($"  {ProductInfo.CommandName} <command> [options]");
         output.WriteLine();
         output.WriteLine("Commands:");
+        output.WriteLine("  scan [path]   Read the restored NuGet dependency graph (project.assets.json)");
+        output.WriteLine("                  --format table|json   output format (default: table)");
+        output.WriteLine("                  --out <file>          write the result to a file");
         output.WriteLine("  doctor        Check that this installation is healthy");
         output.WriteLine("  version       Print the version");
         output.WriteLine("  help          Show this help");
         output.WriteLine();
-        output.WriteLine("Planned commands (see the roadmap): init, scan, graph, reach, rank, plan, verify, apply, explain, vex, audit, bundle, bench, ci");
+        output.WriteLine("Planned commands (see the roadmap): init, graph, reach, rank, plan, verify, apply, explain, vex, audit, bundle, bench, ci");
         output.WriteLine($"Documentation: {ProductInfo.RepositoryUrl}");
     }
 }

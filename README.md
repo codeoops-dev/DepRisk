@@ -48,27 +48,27 @@ A command-line framework for **risk-aware, uncertainty-driven prioritization and
 
 A typical mid-size project has hundreds of transitive dependencies. A scanner reports dozens or hundreds of advisories. Teams then do one of three things:
 
-1. **Fix everything by CVSS order.** CVSS measures severity in a generic scenario, not *your* exposure. Most "critical" findings sit in code paths your application never calls.
+1. **Fix everything by CVSS order.** CVSS measures severity in a generic scenario, not _your_ exposure. Most "critical" findings sit in code paths your application never calls.
 2. **Ignore the noise.** Alert fatigue wins and real risk hides in the pile.
 3. **Bump everything to latest.** This breaks builds, burns engineering time, and still gives no guarantee the result is consistent.
 
 Three questions are left unanswered by mainstream tooling:
 
-| Question | Why it is hard |
-|---|---|
-| *Is the vulnerable code reachable from my application?* | Needs call-graph analysis, not just version matching. |
-| *How sure are we, and what is the downside if we are wrong?* | Risk is a distribution, not a single number. |
-| *Given limited time, which set of upgrades is best, and is that set even consistent?* | Packages constrain each other in groups (hyperedges), and the best set is an optimization problem. |
+| Question                                                                              | Why it is hard                                                                                     |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| _Is the vulnerable code reachable from my application?_                               | Needs call-graph analysis, not just version matching.                                              |
+| _How sure are we, and what is the downside if we are wrong?_                          | Risk is a distribution, not a single number.                                                       |
+| _Given limited time, which set of upgrades is best, and is that set even consistent?_ | Packages constrain each other in groups (hyperedges), and the best set is an optimization problem. |
 
 DepRisk answers all three, from the terminal, offline if you need it.
 
 ## What DepRisk does differently
 
 - **Reachability-aware.** Maps each advisory to vulnerable symbols and checks whether your code can reach them. Findings are labeled `reachable`, `possibly-reachable`, `unreachable`, or `unknown`, never silently dropped.
-- **Uncertainty-driven.** Risk is modeled as a probability distribution (not a point score). Plans can optimize expected risk *and* tail risk (CVaR).
+- **Uncertainty-driven.** Risk is modeled as a probability distribution (not a point score). Plans can optimize expected risk _and_ tail risk (CVaR).
 - **Decision optimization.** Remediation is solved as a constrained optimization problem: minimize residual risk under an effort budget and compatibility constraints.
 - **Hypergraph model.** Multi-package constraints (for example, three packages that must move together) are first-class hyperedges, not flattened into pairwise edges.
-- **Verified plans.** A small, formally proven kernel (Ada/SPARK) independently checks every plan. The optimizer is *untrusted*; the checker is *proven*.
+- **Verified plans.** A small, formally proven kernel (Ada/SPARK) independently checks every plan. The optimizer is _untrusted_; the checker is _proven_.
 - **Auditable.** Every decision is recorded in a hash-chained, signed log you can verify offline.
 - **Air-gapped ready.** Signed offline data bundles; zero network calls by default during analysis.
 - **Interoperable.** Reads CycloneDX/SPDX SBOMs and lockfiles; emits SARIF, JSON, and OpenVEX.
@@ -158,23 +158,23 @@ make prove            # re-runs the formal proofs (GNATprove)
 
 All commands accept `--format table|json|sarif|openvex`, `--config <path>`, and `--offline`. Exit codes are stable and documented below.
 
-| Command | Purpose |
-|---|---|
-| `deprisk init` | Create `deprisk.toml`, generate a signing key, initialize the local store. |
-| `deprisk scan [path]` | Parse lockfiles/SBOMs, build the dependency hypergraph, match advisories. |
-| `deprisk graph` | Inspect or export the hypergraph (`--export dot\|json`). |
-| `deprisk reach` | Run reachability analysis from your entrypoints to vulnerable symbols. |
-| `deprisk rank` | Compute risk distributions and rank findings. |
-| `deprisk plan` | Compute an optimal remediation plan under budget and constraints. |
-| `deprisk verify <plan>` | Check a plan with the formally verified kernel. |
-| `deprisk apply <plan>` | Apply a verified plan (manifest edits, branch, optional PR). |
-| `deprisk explain <id>` | Explain why a finding ranks where it does (evidence, call path, uncertainty). |
-| `deprisk vex` | Export OpenVEX statements for findings proven or judged unreachable. |
-| `deprisk audit verify` | Verify the integrity of the audit log. |
-| `deprisk bundle create\|import\|verify` | Build or load signed offline data bundles. |
-| `deprisk bench` | Run the reproducible benchmark suite. |
-| `deprisk ci` | One-shot CI mode with policy gates and SARIF output. |
-| `deprisk doctor` | Diagnose installation. |
+| Command                                 | Purpose                                                                       |
+| --------------------------------------- | ----------------------------------------------------------------------------- |
+| `deprisk init`                          | Create `deprisk.toml`, generate a signing key, initialize the local store.    |
+| `deprisk scan [path]`                   | Parse lockfiles/SBOMs, build the dependency hypergraph, match advisories.     |
+| `deprisk graph`                         | Inspect or export the hypergraph (`--export dot\|json`).                      |
+| `deprisk reach`                         | Run reachability analysis from your entrypoints to vulnerable symbols.        |
+| `deprisk rank`                          | Compute risk distributions and rank findings.                                 |
+| `deprisk plan`                          | Compute an optimal remediation plan under budget and constraints.             |
+| `deprisk verify <plan>`                 | Check a plan with the formally verified kernel.                               |
+| `deprisk apply <plan>`                  | Apply a verified plan (manifest edits, branch, optional PR).                  |
+| `deprisk explain <id>`                  | Explain why a finding ranks where it does (evidence, call path, uncertainty). |
+| `deprisk vex`                           | Export OpenVEX statements for findings proven or judged unreachable.          |
+| `deprisk audit verify`                  | Verify the integrity of the audit log.                                        |
+| `deprisk bundle create\|import\|verify` | Build or load signed offline data bundles.                                    |
+| `deprisk bench`                         | Run the reproducible benchmark suite.                                         |
+| `deprisk ci`                            | One-shot CI mode with policy gates and SARIF output.                          |
+| `deprisk doctor`                        | Diagnose installation.                                                        |
 
 ### Examples
 
@@ -197,20 +197,20 @@ deprisk plan --seed 42 --solver cbc --out plan.json
 
 ### Exit codes
 
-| Code | Meaning |
-|---|---|
-| 0 | Success, policy satisfied |
-| 1 | Policy gate failed (for example, reachable finding above threshold) |
-| 2 | Plan verification failed |
-| 3 | Audit log integrity failure |
-| 4 | Input or configuration error |
-| 5 | Internal error |
+| Code | Meaning                                                             |
+| ---- | ------------------------------------------------------------------- |
+| 0    | Success, policy satisfied                                           |
+| 1    | Policy gate failed (for example, reachable finding above threshold) |
+| 2    | Plan verification failed                                            |
+| 3    | Audit log integrity failure                                         |
+| 4    | Input or configuration error                                        |
+| 5    | Internal error                                                      |
 
 ## How it works (the method)
 
 ### 1. Dependency hypergraph
 
-Ordinary dependency graphs use pairwise edges: *A depends on B*. Real constraints often involve several packages at once (a framework family that must share a version line, a plugin set that must match a host). DepRisk models these as hyperedges.
+Ordinary dependency graphs use pairwise edges: _A depends on B_. Real constraints often involve several packages at once (a framework family that must share a version line, a plugin set that must match a host). DepRisk models these as hyperedges.
 
 Let `P` be the set of packages and `V_p` the candidate versions of package `p`. A configuration picks exactly one version per package. A hyperedge `e = (S_e, C_e)` has a scope `S_e ⊆ P` and a set of allowed joint assignments `C_e`. A configuration is **consistent** iff every hyperedge's scope assignment lies in `C_e`.
 
@@ -222,7 +222,7 @@ For each advisory, DepRisk resolves a **symbol set** (functions, methods, or mod
 2. a curated symbol map shipped in the data bundle,
 3. symbols **mined from the upstream fix commit** (functions changed by the patch).
 
-A Rust analyzer builds a conservative call graph from your declared entrypoints and checks whether any path reaches the symbol set. Dynamic features (reflection, dynamic dispatch, eval-like constructs) add *possible* edges marked as such. Output is one of:
+A Rust analyzer builds a conservative call graph from your declared entrypoints and checks whether any path reaches the symbol set. Dynamic features (reflection, dynamic dispatch, eval-like constructs) add _possible_ edges marked as such. Output is one of:
 
 `reachable` (path found) · `possibly-reachable` (path needs dynamic edges) · `unreachable` (no path in the over-approximated graph) · `unknown` (no symbol data, or unsupported construct)
 
@@ -303,14 +303,14 @@ flowchart LR
 
 **Design decisions**
 
-| Decision | Rationale |
-|---|---|
-| CLI-first, no server | Zero setup, easy to script, easy to run in CI and air-gapped hosts. |
-| C# core | Fast to evolve; strong typing for the model and optimizer glue. |
-| Rust analyzer | Performance and memory safety for parsing untrusted source at scale. |
-| SPARK kernel | Small trusted base with machine-checked proofs; keeps the optimizer out of the trust boundary. |
-| SQLite local store | No database to install. A PostgreSQL backend for team/server mode is on the [roadmap](#roadmap) and the storage layer is behind an interface. |
-| No code execution of scanned projects | Static analysis only. Build/test execution happens only in `apply --validate`, in an explicit sandbox. |
+| Decision                              | Rationale                                                                                                                                     |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| CLI-first, no server                  | Zero setup, easy to script, easy to run in CI and air-gapped hosts.                                                                           |
+| C# core                               | Fast to evolve; strong typing for the model and optimizer glue.                                                                               |
+| Rust analyzer                         | Performance and memory safety for parsing untrusted source at scale.                                                                          |
+| SPARK kernel                          | Small trusted base with machine-checked proofs; keeps the optimizer out of the trust boundary.                                                |
+| SQLite local store                    | No database to install. A PostgreSQL backend for team/server mode is on the [roadmap](#roadmap) and the storage layer is behind an interface. |
+| No code execution of scanned projects | Static analysis only. Build/test execution happens only in `apply --validate`, in an explicit sandbox.                                        |
 
 **Repository layout**
 
@@ -344,33 +344,33 @@ The optimizer (MILP + sampling) is complex and floating-point heavy, so it is **
 
 The kernel takes the hypergraph, the current configuration, the plan, and the budget as input. If it returns `ACCEPT`, the following are proven properties of the code:
 
-| Property | Meaning |
-|---|---|
-| **P1: Uniqueness** | Every package ends with exactly one version. |
-| **P2: Consistency** | Every hyperedge constraint is satisfied by the resulting configuration. |
-| **P3: Budget** | Total plan cost does not exceed the budget. |
-| **P4: Policy** | Pins, no-major rules, and allow-lists are respected. |
-| **P5: Fix claims** | Every advisory the plan claims to fix is actually outside its affected range after the plan. |
-| **P6: Absence of runtime errors** | No overflow, out-of-bounds, or uninitialized reads (SPARK AoRTE). |
+| Property                          | Meaning                                                                                      |
+| --------------------------------- | -------------------------------------------------------------------------------------------- |
+| **P1: Uniqueness**                | Every package ends with exactly one version.                                                 |
+| **P2: Consistency**               | Every hyperedge constraint is satisfied by the resulting configuration.                      |
+| **P3: Budget**                    | Total plan cost does not exceed the budget.                                                  |
+| **P4: Policy**                    | Pins, no-major rules, and allow-lists are respected.                                         |
+| **P5: Fix claims**                | Every advisory the plan claims to fix is actually outside its affected range after the plan. |
+| **P6: Absence of runtime errors** | No overflow, out-of-bounds, or uninitialized reads (SPARK AoRTE).                            |
 
 Design choices that keep the proofs tractable: scaled-integer arithmetic (no floating point in the kernel), bounded collections, and a deliberately small input format. Proof status is reproducible with `make prove`; the CI pipeline fails if any verification condition is unproven.
 
-> What is *not* proven: that the plan is *optimal* (that is the optimizer's job and is evaluated empirically), or that reachability labels are correct (see [limitations](#threat-model-and-limitations)).
+> What is _not_ proven: that the plan is _optimal_ (that is the optimizer's job and is evaluated empirically), or that reachability labels are correct (see [limitations](#threat-model-and-limitations)).
 
 ## Tamper-evident audit log
 
 Every command that reads sensitive state or changes something writes an entry:
 
-| Field | Content |
-|---|---|
-| `seq`, `timestamp` | Monotonic sequence number and UTC time |
-| `actor`, `host`, `cwd` | OS user, machine, working directory |
-| `git_commit` | Repository state at the time |
-| `command`, `args` | What was run |
-| `inputs_digest`, `outputs_digest` | SHA-256 over inputs and results |
-| `changes` | Structured diff, `from → to` (for example `lib-a 2.3.1 → 2.5.0`) |
-| `prev_hash` | Hash of the previous entry |
-| `signature` | Ed25519 signature over the entry |
+| Field                             | Content                                                          |
+| --------------------------------- | ---------------------------------------------------------------- |
+| `seq`, `timestamp`                | Monotonic sequence number and UTC time                           |
+| `actor`, `host`, `cwd`            | OS user, machine, working directory                              |
+| `git_commit`                      | Repository state at the time                                     |
+| `command`, `args`                 | What was run                                                     |
+| `inputs_digest`, `outputs_digest` | SHA-256 over inputs and results                                  |
+| `changes`                         | Structured diff, `from → to` (for example `lib-a 2.3.1 → 2.5.0`) |
+| `prev_hash`                       | Hash of the previous entry                                       |
+| `signature`                       | Ed25519 signature over the entry                                 |
 
 Entries form a hash chain; periodic Merkle checkpoints allow efficient partial verification. Anyone with the public key can run:
 
@@ -463,24 +463,24 @@ Claims should be falsifiable. DepRisk ships its own evaluation harness.
 
 **Baselines compared**
 
-| Baseline | Description |
-|---|---|
-| B1 | CVSS-only ordering |
-| B2 | CVSS + EPSS/KEV |
-| B3 | Reachable-only filtering (no uncertainty, no optimization) |
-| B4 | "Upgrade everything to latest" |
-| **DepRisk** | Full pipeline |
+| Baseline    | Description                                                |
+| ----------- | ---------------------------------------------------------- |
+| B1          | CVSS-only ordering                                         |
+| B2          | CVSS + EPSS/KEV                                            |
+| B3          | Reachable-only filtering (no uncertainty, no optimization) |
+| B4          | "Upgrade everything to latest"                             |
+| **DepRisk** | Full pipeline                                              |
 
 **Metrics**
 
-| Metric | What it tells you |
-|---|---|
-| Residual expected risk vs. effort (Pareto curve) | Quality of prioritization under a budget |
-| Alert reduction with no missed known-exploited findings | Noise removed without losing real risk |
-| Reachability precision/recall on labeled cases | Analyzer quality |
-| Post-plan build/test pass rate | Whether "safe" remediation is actually safe |
-| Plan verification time | Practical cost of formal checking |
-| Calibration of risk quantiles | Whether stated uncertainty is honest |
+| Metric                                                  | What it tells you                           |
+| ------------------------------------------------------- | ------------------------------------------- |
+| Residual expected risk vs. effort (Pareto curve)        | Quality of prioritization under a budget    |
+| Alert reduction with no missed known-exploited findings | Noise removed without losing real risk      |
+| Reachability precision/recall on labeled cases          | Analyzer quality                            |
+| Post-plan build/test pass rate                          | Whether "safe" remediation is actually safe |
+| Plan verification time                                  | Practical cost of formal checking           |
+| Calibration of risk quantiles                           | Whether stated uncertainty is honest        |
 
 **Reproduce**
 
@@ -491,7 +491,7 @@ deprisk bench --suite quick     # smoke test, minutes
 
 Datasets are pinned by commit hash with ground-truth manifests (known-exploited advisories, historical fix commits). Results land in `benchmarks/results/` as machine-readable files plus generated plots. **No result is reported unless it can be regenerated by these commands.**
 
-> Results: *not yet generated.* This section will be filled from `benchmarks/results/` when the first full run completes.
+> Results: _not yet generated._ This section will be filled from `benchmarks/results/` when the first full run completes.
 
 ## Threat model and limitations
 
@@ -507,14 +507,14 @@ DepRisk analyzes untrusted code and handles security-relevant decisions, so its 
 
 **Known limitations**
 
-| Limitation | Effect | Handling |
-|---|---|---|
+| Limitation                                  | Effect                                        | Handling                                                     |
+| ------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------ |
 | Reflection, dynamic loading, eval-like code | Call graph may miss or over-approximate paths | Marked `possibly-reachable`/`unknown`, never silently "safe" |
-| Missing symbol data for an advisory | Cannot decide reachability | Labeled `unknown`; counted as risk |
-| EPSS/KEV are forecasts and incomplete | Exploit probability is uncertain | Modeled as distributions |
-| Effort/cost estimates are heuristic | Plans may over/under-budget | Budget is a model input; calibrate with `deprisk bench` |
-| Ecosystem coverage | Initial release covers a subset | See [Feature status](#feature-status) |
-| Kernel proves consistency, not optimality | A verified plan may be suboptimal | Optimality evaluated empirically |
+| Missing symbol data for an advisory         | Cannot decide reachability                    | Labeled `unknown`; counted as risk                           |
+| EPSS/KEV are forecasts and incomplete       | Exploit probability is uncertain              | Modeled as distributions                                     |
+| Effort/cost estimates are heuristic         | Plans may over/under-budget                   | Budget is a model input; calibrate with `deprisk bench`      |
+| Ecosystem coverage                          | Initial release covers a subset               | See [Feature status](#feature-status)                        |
+| Kernel proves consistency, not optimality   | A verified plan may be suboptimal             | Optimality evaluated empirically                             |
 
 Found a security issue in DepRisk itself? See [`SECURITY.md`](SECURITY.md) for private disclosure.
 
@@ -522,26 +522,27 @@ Found a security issue in DepRisk itself? See [`SECURITY.md`](SECURITY.md) for p
 
 Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 
-| Area | Feature | Status |
-|---|---|---|
-| Ingest | NuGet lockfiles | 🗺️ |
-| Ingest | npm lockfiles | 🗺️ |
-| Ingest | CycloneDX / SPDX SBOM | 🗺️ |
-| Model | Dependency hypergraph | 🗺️ |
-| Analysis | Reachability: C# | 🗺️ |
-| Analysis | Reachability: JS/TS | 🗺️ |
-| Analysis | Symbol mining from fix commits | 🗺️ |
-| Risk | Monte Carlo risk distributions | 🗺️ |
-| Plan | MILP optimizer with CVaR | 🗺️ |
-| Verify | SPARK kernel (P1–P6) | 🗺️ |
-| Audit | Hash-chained signed log | 🗺️ |
-| Offline | Signed bundles | 🗺️ |
-| Output | SARIF / JSON / OpenVEX | 🗺️ |
-| CI | `deprisk ci` + policy gates | 🗺️ |
-| Explain | Deterministic evidence report | 🗺️ |
-| Explain | Optional local-LLM narrative | 🗺️ |
+| Area     | Feature                                                        | Status |
+| -------- | -------------------------------------------------------------- | ------ |
+| Ingest   | NuGet restore graph (`project.assets.json`) via `deprisk scan` | ✅     |
+| Ingest   | NuGet lockfiles (`packages.lock.json`)                         | 🗺️     |
+| Ingest   | npm lockfiles                                                  | 🗺️     |
+| Ingest   | CycloneDX / SPDX SBOM                                          | 🗺️     |
+| Model    | Dependency hypergraph                                          | 🗺️     |
+| Analysis | Reachability: C#                                               | 🗺️     |
+| Analysis | Reachability: JS/TS                                            | 🗺️     |
+| Analysis | Symbol mining from fix commits                                 | 🗺️     |
+| Risk     | Monte Carlo risk distributions                                 | 🗺️     |
+| Plan     | MILP optimizer with CVaR                                       | 🗺️     |
+| Verify   | SPARK kernel (P1–P6)                                           | 🗺️     |
+| Audit    | Hash-chained signed log                                        | 🗺️     |
+| Offline  | Signed bundles                                                 | 🗺️     |
+| Output   | SARIF / JSON / OpenVEX                                         | 🗺️     |
+| CI       | `deprisk ci` + policy gates                                    | 🗺️     |
+| Explain  | Deterministic evidence report                                  | 🗺️     |
+| Explain  | Optional local-LLM narrative                                   | 🗺️     |
 
-*(Update this table as features land; it is the source of truth for what works today.)*
+_(Update this table as features land; it is the source of truth for what works today.)_
 
 ## Roadmap
 
@@ -557,14 +558,14 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 
 If you evaluate tooling for a security or platform team, here is what to check:
 
-| You care about | What to look at |
-|---|---|
-| Noise reduction | `deprisk bench` alert-reduction metric and `explain` output for suppressed findings |
-| Trust in automation | The proven kernel and its published properties (P1–P6) |
-| Compliance and audit | Signed audit log, OpenVEX export, SARIF in your existing pipeline |
-| Restricted networks | Air-gapped workflow and signed bundles |
-| Data privacy | No telemetry, no source code leaves the machine |
-| Adoption cost | Single CLI, no server or database to run, standard exit codes |
+| You care about       | What to look at                                                                     |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| Noise reduction      | `deprisk bench` alert-reduction metric and `explain` output for suppressed findings |
+| Trust in automation  | The proven kernel and its published properties (P1–P6)                              |
+| Compliance and audit | Signed audit log, OpenVEX export, SARIF in your existing pipeline                   |
+| Restricted networks  | Air-gapped workflow and signed bundles                                              |
+| Data privacy         | No telemetry, no source code leaves the machine                                     |
+| Adoption cost        | Single CLI, no server or database to run, standard exit codes                       |
 
 **Pilot it in a day:** run `deprisk scan && deprisk reach && deprisk rank` on one service, compare the top 10 against your current process, and open an issue with what it got right or wrong. Negative results are valuable and will be credited.
 
