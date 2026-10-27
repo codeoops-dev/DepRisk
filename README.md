@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/deprisk-logo.svg" alt="DepRisk logo" width="120" height="120">
+
 # DepRisk
 
 **Stop triaging CVEs by CVSS score. Start fixing the ones that can actually hurt you, with a plan you can prove is safe.**
