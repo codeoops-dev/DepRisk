@@ -47,7 +47,7 @@
       "required": ["name", "packages"],
       "properties": {
         "name": {
-          "description": "Target framework, optionally with a runtime identifier, for example 'net10.0' or 'net10.0/win-x64'.",
+          "description": "Target framework (or, for assets file version 4, the target framework alias), optionally followed by '/' and a runtime identifier, for example 'net10.0' or 'net10.0/win-x64'.",
           "type": "string",
           "minLength": 1
         },

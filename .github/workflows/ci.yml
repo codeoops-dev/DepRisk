@@ -43,6 +43,7 @@ jobs:
       - name: Scan output matches schemas/scan-result.v1.schema.json
         if: runner.os == 'Linux'
         run: |
+          dotnet --version
           dotnet run --no-build -c Release --project src/DepRisk.Cli -- scan . --format json --out scan-result.json
           python3 -m pip install --user check-jsonschema==0.38.2
           python3 -m check_jsonschema --schemafile schemas/scan-result.v1.schema.json scan-result.json

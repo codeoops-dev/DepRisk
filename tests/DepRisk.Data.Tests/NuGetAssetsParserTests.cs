@@ -126,10 +126,72 @@ public class NuGetAssetsParserTests
         Assert.Throws<InvalidInputException>(() => NuGetAssetsParser.Parse("""{"name":"x"}""", "x.json", "p"));
     }
 
-    [Fact]
-    public void Rejects_unsupported_assets_versions()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(5)]
+    [InlineData(99)]
+    public void Rejects_unsupported_assets_versions(int version)
     {
-        Assert.Throws<InvalidInputException>(() => NuGetAssetsParser.Parse("""{"version":2}""", "x.json", "p"));
+        InvalidInputException error = Assert.Throws<InvalidInputException>(
+            () => NuGetAssetsParser.Parse($$"""{"version":{{version}}}""", "x.json", "p"));
+
+        Assert.Contains("supported: 3, 4", error.Message);
+    }
+
+    [Fact]
+    public void Reads_version_4_files_that_use_the_framework_alias_as_the_target_name()
+    {
+        // Synthetic, following NuGet's published design for assets file version 4 (written by .NET SDK 10.0.300+):
+        // "targets" and "projectFileDependencyGroups" are keyed by the target framework alias, here "production".
+        const string json = """
+        {
+          "version": 4,
+          "targets": {
+            "production": {
+              "Pkg.One/1.0.0": { "type": "package", "dependencies": { "Pkg.Two": "2.0.0" } },
+              "Pkg.Two/2.0.0": { "type": "package" }
+            },
+            "production/linux-x64": {
+              "Pkg.One/1.0.0": { "type": "package", "dependencies": { "Pkg.Two": "2.0.0" } },
+              "Pkg.Two/2.0.0": { "type": "package" }
+            }
+          },
+          "projectFileDependencyGroups": { "production": ["Pkg.One >= 1.0.0"] },
+          "project": {
+            "restore": {
+              "projectName": "Aliased",
+              "frameworks": { "production": { "framework": "net10.0", "targetAlias": "production" } }
+            }
+          }
+        }
+        """;
+
+        ProjectGraph graph = NuGetAssetsParser.Parse(json, "x.json", "p");
+
+        Assert.Equal("Aliased", graph.Name);
+        Assert.Equal(new[] { "production", "production/linux-x64" }, graph.Targets.Select(t => t.Name).ToArray());
+
+        foreach (TargetGraph target in graph.Targets)
+        {
+            Assert.True(target.Packages.Single(p => p.Id == "Pkg.One").IsDirect);
+            Assert.False(target.Packages.Single(p => p.Id == "Pkg.Two").IsDirect);
+        }
+    }
+
+    [Fact]
+    public void Ignores_non_object_bookkeeping_entries_inside_targets()
+    {
+        const string json = """
+        {
+          "version": 4,
+          "targets": { "net10.0": { "@count": 1, "Pkg.One/1.0.0": { "type": "package" } } },
+          "projectFileDependencyGroups": { "net10.0": ["Pkg.One >= 1.0.0"] }
+        }
+        """;
+
+        TargetGraph target = Assert.Single(NuGetAssetsParser.Parse(json, "x.json", "p").Targets);
+
+        Assert.Equal("Pkg.One", Assert.Single(target.Packages).Id);
     }
 
     [Fact]

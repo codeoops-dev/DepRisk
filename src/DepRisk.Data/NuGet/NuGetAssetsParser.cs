@@ -9,9 +9,19 @@ namespace DepRisk.Data.NuGet;
 /// The input is untrusted: the parser is bounded (depth), never executes anything, and reports problems
 /// as <see cref="InvalidInputException"/>.
 /// </summary>
+/// <remarks>
+/// Supported format versions:
+/// <list type="bullet">
+/// <item>3: written by .NET SDKs older than 10.0.300 and by classic projects.</item>
+/// <item>4: written by .NET SDK 10.0.300 and newer. Sections that were keyed by target framework
+/// ("targets", "projectFileDependencyGroups") are keyed by the target framework <em>alias</em>
+/// (usually identical to the framework name). DepRisk uses that key as-is, so both versions read the same way.</item>
+/// </list>
+/// Any other version is rejected: a security tool must not guess at the meaning of data it does not understand.
+/// </remarks>
 public static class NuGetAssetsParser
 {
-    private const int SupportedAssetsVersion = 3;
+    private static readonly int[] SupportedAssetsVersions = [3, 4];
 
     private static readonly JsonDocumentOptions DocumentOptions = new()
     {
@@ -47,10 +57,11 @@ public static class NuGetAssetsParser
                 throw new InvalidInputException($"{displayPath}: not a NuGet assets file (missing 'version').");
             }
 
-            if (version != SupportedAssetsVersion)
+            if (!SupportedAssetsVersions.Contains(version))
             {
                 throw new InvalidInputException(
-                    $"{displayPath}: unsupported assets file version {version} (supported: {SupportedAssetsVersion}).");
+                    $"{displayPath}: unsupported assets file version {version} (supported: {string.Join(", ", SupportedAssetsVersions)}). "
+                    + $"Please report your .NET SDK version at {ProductInfo.RepositoryUrl}/issues.");
             }
 
             Dictionary<string, HashSet<string>> directByFramework = ReadDirectDependencies(root);
@@ -135,7 +146,8 @@ public static class NuGetAssetsParser
 
         foreach (JsonProperty target in targetsElement.EnumerateObject())
         {
-            // Target names look like "net10.0" or "net10.0/win-x64"; direct dependencies are keyed by the framework part.
+            // Target names look like "net10.0" or "net10.0/win-x64" (version 4 files use the framework alias instead of the
+            // framework name); direct dependencies are keyed by the part before the runtime identifier.
             int slash = target.Name.IndexOf('/', StringComparison.Ordinal);
             string framework = slash > 0 ? target.Name[..slash] : target.Name;
             directByFramework.TryGetValue(framework, out HashSet<string>? direct);
@@ -168,6 +180,7 @@ public static class NuGetAssetsParser
 
     private static ResolvedPackage? ReadPackage(JsonProperty entry, HashSet<string>? direct, string displayPath)
     {
+        // Package entries are objects. Anything else (for example bookkeeping values a newer NuGet may add) is not a package.
         if (entry.Value.ValueKind != JsonValueKind.Object)
         {
             return null;
