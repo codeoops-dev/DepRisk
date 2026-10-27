@@ -1,0 +1,63 @@
+name: release
+
+# Publishes DepRisk.Cli to nuget.org with Trusted Publishing (no long-lived API key).
+# Trigger: push a tag such as v0.0.1-alpha.1 (the tag must match the version in Directory.Build.props).
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Must match the "Environment" field of the Trusted Publishing policy on nuget.org.
+    environment: release
+    permissions:
+      contents: read
+      id-token: write # lets this job request a GitHub OIDC token
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore -c Release
+
+      - name: Test
+        run: dotnet test --no-build -c Release
+
+      - name: Pack
+        run: dotnet pack src/DepRisk.Cli --no-restore -c Release -o artifacts
+
+      - name: Check that the tag matches the package version
+        shell: bash
+        run: |
+          expected="DepRisk.Cli.${GITHUB_REF_NAME#v}.nupkg"
+          if [ ! -f "artifacts/${expected}" ]; then
+            echo "Tag '${GITHUB_REF_NAME}' does not match the built package. Expected artifacts/${expected}, found:"
+            ls -1 artifacts
+            exit 1
+          fi
+
+      # Request the short-lived API key as late as possible (it is valid for one hour).
+      - name: NuGet login (OIDC to temporary API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }} # nuget.org profile name, NOT an email address
+
+      - name: Push to nuget.org
+        run: >
+          dotnet nuget push artifacts/*.nupkg
+          --api-key ${{ steps.login.outputs.NUGET_API_KEY }}
+          --source https://api.nuget.org/v3/index.json
