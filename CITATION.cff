@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use DepRisk in your research, please cite it as below."
+type: software
+title: "DepRisk: Risk-aware, uncertainty-driven prioritization and verified remediation of dependency vulnerabilities"
+abstract: >-
+  DepRisk is a command-line framework that prioritizes and plans the safe
+  remediation of software dependency vulnerabilities using reachability
+  analysis, dependency hypergraphs, uncertainty modeling, and decision
+  optimization, with a formally verified plan checker and a tamper-evident
+  audit log.
+authors:
+  - family-names: Kabiri
+    given-names: Jahed
+    affiliation: "Tabriz University"
+repository-code: "https://github.com/codeoops-dev/deprisk"
+license: Apache-2.0
+keywords:
+  - dependency security
+  - software supply chain
+  - vulnerability management
+  - reachability analysis
+  - decision optimization
+  - formal verification
+  - SBOM
