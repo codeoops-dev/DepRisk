@@ -1,4 +1,21 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>deprisk</AssemblyName>
+    <RootNamespace>DepRisk.Cli</RootNamespace>
+
+    <!-- dotnet tool packaging -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>deprisk</ToolCommandName>
+    <PackageId>DepRisk.Cli</PackageId>
+    <Description>Reachability-aware, uncertainty-driven dependency vulnerability triage and verified remediation planning, from your terminal.</Description>
+    <PackageTags>dependency-security;vulnerability-management;sbom;supply-chain-security;reachability-analysis;cli</PackageTags>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/codeoops-dev/deprisk</PackageProjectUrl>
+    <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+  </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DepRisk.Core\DepRisk.Core.csproj" />
@@ -6,11 +23,10 @@
     <ProjectReference Include="..\DepRisk.Audit\DepRisk.Audit.csproj" />
   </ItemGroup>
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+  <ItemGroup>
+    <None Include="PACKAGE.md" Pack="true" PackagePath="\" />
+    <None Include="icon.png" Pack="true" PackagePath="\" />
+    <InternalsVisibleTo Include="DepRisk.Cli.Tests" />
+  </ItemGroup>
 
 </Project>

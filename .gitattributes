@@ -1,0 +1,11 @@
+# Normalize line endings: store LF in the repo, let Git convert on checkout.
+* text=auto
+*.sh   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.cff  text eol=lf
+*.ps1  text eol=crlf
+*.png  binary
+*.jpg  binary

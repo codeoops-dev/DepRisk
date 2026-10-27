@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/codeoops-dev/deprisk/schemas/audit-entry.v1.schema.json",
+  "title": "DepRisk audit log entry (v1)",
+  "description": "One entry of the hash-chained, signed audit log. Entries are stored one per line (JSON Lines).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "seq",
+    "timestamp",
+    "actor",
+    "host",
+    "cwd",
+    "command",
+    "args",
+    "inputsDigest",
+    "outputsDigest",
+    "changes",
+    "prevHash",
+    "signature"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "seq": {
+      "description": "Monotonic sequence number, starting at 1.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "timestamp": {
+      "description": "UTC time, RFC 3339.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "actor": {
+      "description": "Operating-system user that ran the command.",
+      "type": "string",
+      "minLength": 1
+    },
+    "host": {
+      "description": "Machine name.",
+      "type": "string",
+      "minLength": 1
+    },
+    "cwd": {
+      "description": "Working directory.",
+      "type": "string"
+    },
+    "gitCommit": {
+      "description": "Repository commit at the time, if the working directory is inside a Git repository.",
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{7,64}$"
+    },
+    "command": {
+      "description": "Command name, for example \"plan\" or \"apply\".",
+      "type": "string",
+      "minLength": 1
+    },
+    "args": {
+      "description": "Arguments as typed, with secrets redacted.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "inputsDigest": {
+      "description": "SHA-256 over the canonical inputs, lowercase hex.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "outputsDigest": {
+      "description": "SHA-256 over the canonical outputs, lowercase hex.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "changes": {
+      "description": "Structured list of what changed, from -> to.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["subject", "from", "to"],
+        "properties": {
+          "subject": { "type": "string", "minLength": 1 },
+          "from": { "type": ["string", "null"] },
+          "to": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "prevHash": {
+      "description": "SHA-256 of the previous entry (lowercase hex). 64 zeros for the first entry.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "signature": {
+      "description": "Ed25519 signature over the entry (all other fields, canonical form), standard Base64.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{86}==$"
+    }
+  }
+}

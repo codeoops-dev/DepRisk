@@ -1,0 +1,31 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!-- Warnings are errors in product code; test projects are exempt so template analyzers never block a build. -->
+  <PropertyGroup Condition="!$(MSBuildProjectName.EndsWith('.Tests'))">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!-- Version: change here only. VersionSuffix is dropped for stable releases. -->
+  <PropertyGroup>
+    <VersionPrefix>0.0.1</VersionPrefix>
+    <VersionSuffix>alpha.1</VersionSuffix>
+    <Authors>Jahed Kabiri</Authors>
+    <Company>codeoops-dev</Company>
+    <Product>DepRisk</Product>
+    <Copyright>Copyright (c) Jahed Kabiri</Copyright>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/codeoops-dev/deprisk</RepositoryUrl>
+  </PropertyGroup>
+
+</Project>
