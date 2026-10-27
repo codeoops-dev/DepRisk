@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DepRisk.Audit/DepRisk.Audit.csproj" />
+    <Project Path="src/DepRisk.Cli/DepRisk.Cli.csproj" />
+    <Project Path="src/DepRisk.Core/DepRisk.Core.csproj" />
+    <Project Path="src/DepRisk.Data/DepRisk.Data.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DepRisk.Core.Tests/DepRisk.Core.Tests.csproj" />
+  </Folder>
+</Solution>
