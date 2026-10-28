@@ -1,4 +1,5 @@
 using System.Text;
+using DepRisk.Audit;
 using DepRisk.Core;
 using DepRisk.Core.Model;
 using DepRisk.Data;
@@ -8,13 +9,13 @@ namespace DepRisk.Cli;
 /// <summary>
 /// <c>deprisk scan [path] [--format table|json] [--out file]</c>:
 /// reads the restored dependency graph (project.assets.json) of every project under <c>path</c>.
-/// Static, offline, read-only (apart from the optional output file).
+/// Static, offline, read-only (apart from the optional output file and, in an initialized project, the audit log).
 /// </summary>
 internal static class ScanCommand
 {
     private static readonly string[] SupportedFormats = ["table", "json"];
 
-    public static ExitCode Run(string[] args, TextWriter output)
+    public static ExitCode Run(string[] args, TextWriter output, CliContext context)
     {
         string path = ".";
         string format = "table";
@@ -62,26 +63,49 @@ internal static class ScanCommand
                 $"format '{format}' is not supported for 'scan' (supported: {string.Join(", ", SupportedFormats)}).");
         }
 
-        ScanResult result = ScanService.Scan(path, new ToolInfo(ProductInfo.CommandName, VersionInfo.Current));
-        string text = format == "json" ? ScanResultJson.Serialize(result) : RenderTable(result);
+        string scanPath = Path.GetFullPath(path, context.WorkingDirectory);
+        ScanOutcome outcome = ScanService.ScanDetailed(scanPath, new ToolInfo(ProductInfo.CommandName, VersionInfo.Current));
+
+        // The audited output is always the canonical JSON, so the digest does not depend on the chosen format.
+        string json = ScanResultJson.Serialize(outcome.Result);
+        string text = format == "json" ? json : RenderTable(outcome.Result);
+
+        List<AuditChange> changes = [];
+
+        if (outFile is not null)
+        {
+            string outPath = Path.GetFullPath(outFile, context.WorkingDirectory);
+            bool existed = File.Exists(outPath);
+            WriteFile(outPath, outFile, text);
+            changes.Add(new AuditChange(outFile.Replace('\\', '/'), existed ? "existing file" : null, "written"));
+        }
+
+        AuditRecorder.RecordIfEnabled(
+            context,
+            new AuditDraft("scan", ArgRedactor.Redact(args), outcome.InputsDigest, Digest.Sha256Hex(json), changes));
 
         if (outFile is null)
         {
             output.Write(text);
-            return ExitCode.Success;
+        }
+        else
+        {
+            output.Write($"Wrote {format} scan result to {outFile}\n");
         }
 
+        return ExitCode.Success;
+    }
+
+    private static void WriteFile(string fullPath, string displayPath, string text)
+    {
         try
         {
-            File.WriteAllText(outFile, text, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            File.WriteAllText(fullPath, text, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            throw new InvalidInputException($"cannot write '{outFile}' ({ex.Message})", ex);
+            throw new InvalidInputException($"cannot write '{displayPath}' ({ex.Message})", ex);
         }
-
-        output.Write($"Wrote {format} scan result to {outFile}\n");
-        return ExitCode.Success;
     }
 
     private static string ReadValue(string[] args, ref int index, string option)

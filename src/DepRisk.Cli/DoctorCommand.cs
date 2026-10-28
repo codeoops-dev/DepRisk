@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using DepRisk.Audit;
 using DepRisk.Core;
 
 namespace DepRisk.Cli;
@@ -18,7 +19,7 @@ internal static class DoctorCommand
 
     private sealed record Check(Status Status, string Name, string Detail);
 
-    public static ExitCode Run(TextWriter output)
+    public static ExitCode Run(TextWriter output, CliContext context)
     {
         List<Check> checks =
         [
@@ -27,7 +28,8 @@ internal static class DoctorCommand
             new(Status.Ok, "platform", $"{RuntimeInformation.OSDescription} ({RuntimeInformation.OSArchitecture})"),
             CheckCompanion("deprisk-reach", "reachability analyzer (planned, v0.2)"),
             CheckCompanion("deprisk-kernel", "verification kernel (planned, v0.4)"),
-            CheckConfig(),
+            CheckAudit(context),
+            CheckConfig(context),
         ];
 
         output.WriteLine($"{ProductInfo.CommandName} doctor");
@@ -62,9 +64,18 @@ internal static class DoctorCommand
             : new Check(Status.Ok, name, path);
     }
 
-    private static Check CheckConfig()
+    private static Check CheckAudit(CliContext context)
     {
-        string path = Path.Combine(Directory.GetCurrentDirectory(), "deprisk.toml");
+        AuditStore? store = AuditStore.Find(context.WorkingDirectory);
+
+        return store is null
+            ? new Check(Status.Info, "audit", "not initialized (run 'deprisk init' to start an audit log)")
+            : new Check(Status.Ok, "audit", $"initialized: {store.Directory}");
+    }
+
+    private static Check CheckConfig(CliContext context)
+    {
+        string path = Path.Combine(context.WorkingDirectory, "deprisk.toml");
 
         return File.Exists(path)
             ? new Check(Status.Ok, "config", path)

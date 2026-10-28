@@ -36,11 +36,11 @@ public sealed class ScanCommandTests : IDisposable
         }
     }
 
-    private static (int Code, string Out, string Err) Run(params string[] args)
+    private (int Code, string Out, string Err) Run(params string[] args)
     {
         using StringWriter output = new();
         using StringWriter error = new();
-        int code = CliApp.Run(args, output, error);
+        int code = CliApp.Run(args, output, error, TestContext.For(_root));
         return (code, output.ToString(), error.ToString());
     }
 

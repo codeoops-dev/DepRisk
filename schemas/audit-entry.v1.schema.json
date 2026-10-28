@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/codeoops-dev/deprisk/schemas/audit-entry.v1.schema.json",
   "title": "DepRisk audit log entry (v1)",
-  "description": "One entry of the hash-chained, signed audit log. Entries are stored one per line (JSON Lines).",
+  "description": "One entry of the hash-chained, signed audit log. Entries are stored one per line (JSON Lines) in canonical form (RFC 8785); see docs/audit-log.md.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -49,8 +49,11 @@
       "type": "string"
     },
     "gitCommit": {
-      "description": "Repository commit at the time, if the working directory is inside a Git repository.",
-      "type": ["string", "null"],
+      "description": "Repository commit at the time, read from .git without running git; null if unknown.",
+      "type": [
+        "string",
+        "null"
+      ],
       "pattern": "^[0-9a-f]{7,64}$"
     },
     "command": {
@@ -59,9 +62,11 @@
       "minLength": 1
     },
     "args": {
-      "description": "Arguments as typed, with secrets redacted.",
+      "description": "Arguments as typed. Values of options that look like secrets are replaced by '***'.",
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "inputsDigest": {
       "description": "SHA-256 over the canonical inputs, lowercase hex.",
@@ -79,21 +84,38 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["subject", "from", "to"],
+        "required": [
+          "subject",
+          "from",
+          "to"
+        ],
         "properties": {
-          "subject": { "type": "string", "minLength": 1 },
-          "from": { "type": ["string", "null"] },
-          "to": { "type": ["string", "null"] }
+          "subject": {
+            "type": "string",
+            "minLength": 1
+          },
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         }
       }
     },
     "prevHash": {
-      "description": "SHA-256 of the previous entry (lowercase hex). 64 zeros for the first entry.",
+      "description": "SHA-256 of the previous line (UTF-8, without the line ending), lowercase hex. 64 zeros for the first entry.",
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },
     "signature": {
-      "description": "Ed25519 signature over the entry (all other fields, canonical form), standard Base64.",
+      "description": "ECDSA P-256 / SHA-256 signature over the canonical serialization of all other properties, raw 64-byte r||s, standard Base64 (see ADR 0005).",
       "type": "string",
       "pattern": "^[A-Za-z0-9+/]{86}==$"
     }

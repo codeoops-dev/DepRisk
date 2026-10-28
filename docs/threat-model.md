@@ -47,8 +47,8 @@ Out of scope: the security of the user's own build system, package registries, a
 | T3 | Path traversal or symlink tricks cause writes outside the project | Canonicalize paths; refuse writes outside project root; no following of symlinks on write | designed |
 | T4 | Poisoned or downgraded data bundle hides a vulnerability | Mandatory signature verification; version and freshness checks; unsigned bundles rejected unless explicitly overridden (and logged) | designed |
 | T5 | Network tampering during bundle creation or install | TLS plus signature verification; checksums for release artifacts | designed |
-| T6 | Audit log is edited, truncated, or reordered | Hash chain, Ed25519 signatures, Merkle checkpoints; `deprisk audit verify` | designed |
-| T7 | Audit key theft allows forged entries | Key generated locally with restrictive permissions; support for exporting checkpoints to write-once storage; guidance to keep keys offline | designed |
+| T6 | Audit log is edited, truncated, or reordered | Hash chain, ECDSA P-256 signatures, strict canonical form, `deprisk audit verify` (with `--head` pinning to detect removal from the end); Merkle checkpoints planned | implemented (checkpoints designed) |
+| T7 | Audit key theft allows forged entries | Key generated locally with owner-only permissions (Unix), excluded from Git by `.deprisk/.gitignore`; head pinning outside the machine; guidance to keep keys off shared hosts | partly implemented (external checkpoint export designed) |
 | T8 | Optimizer bug or manipulation yields an inconsistent plan | Independent proven kernel checks P1–P6 before `apply` | designed |
 | T9 | `apply --validate` runs hostile project code | Runs only inside a user-configured sandbox; disabled by default; failure rolls back; actions logged | designed |
 | T10 | Source code or findings leak off the machine | No telemetry, no network calls in analysis commands; LLM explanation is optional and local-first; nothing sent unless the user configures an endpoint | designed |

@@ -47,3 +47,25 @@ jobs:
           dotnet run --no-build -c Release --project src/DepRisk.Cli -- scan . --format json --out scan-result.json
           python3 -m pip install --user check-jsonschema==0.38.2
           python3 -m check_jsonschema --schemafile schemas/scan-result.v1.schema.json scan-result.json
+
+      # Contract test: a real init + scan + verify in a scratch directory; every audit line must match its schema.
+      - name: Audit log matches schemas/audit-entry.v1.schema.json and verifies
+        if: runner.os == 'Linux'
+        run: |
+          cli="$GITHUB_WORKSPACE/src/DepRisk.Cli/bin/Release/net10.0/deprisk.dll"
+          work="$(mktemp -d)"
+          cd "$work"
+          dotnet "$cli" init
+          dotnet "$cli" scan "$GITHUB_WORKSPACE" --format json --out scan.json
+          dotnet "$cli" audit verify
+          python3 - <<'PY'
+          import json, os, jsonschema
+          schema_path = os.path.join(os.environ["GITHUB_WORKSPACE"], "schemas", "audit-entry.v1.schema.json")
+          validator = jsonschema.Draft202012Validator(json.load(open(schema_path)))
+          count = 0
+          for number, line in enumerate(open(".deprisk/audit.log", encoding="utf-8"), 1):
+              validator.validate(json.loads(line))
+              count += 1
+          assert count == 2, f"expected 2 entries, found {count}"
+          print(f"{count} audit entries match the schema")
+          PY
