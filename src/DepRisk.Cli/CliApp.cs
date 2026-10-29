@@ -73,6 +73,9 @@ internal static class CliApp
             case "scan":
                 return ScanCommand.Run(args[1..], output, context);
 
+            case "match":
+                return MatchCommand.Run(args[1..], output, context);
+
             case "audit":
                 return AuditCommand.Run(args[1..], output, error, context);
 
@@ -94,6 +97,9 @@ internal static class CliApp
         output.WriteLine("  scan [path]   Read the restored NuGet dependency graph (project.assets.json)");
         output.WriteLine("                  --format table|json   output format (default: table)");
         output.WriteLine("                  --out <file>          write the result to a file");
+        output.WriteLine("  match [path]  Match dependencies against local OSV advisories (offline)");
+        output.WriteLine("                  --advisories <dir|.zip|.json>   advisory data (required)");
+        output.WriteLine("                  --format table|json  --out <file>  --strict");
         output.WriteLine("  audit verify  Verify the audit log (--pubkey <file>, --head <hash>)");
         output.WriteLine("  doctor        Check that this installation is healthy");
         output.WriteLine("  version       Print the version");

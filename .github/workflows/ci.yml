@@ -69,3 +69,31 @@ jobs:
           assert count == 2, f"expected 2 entries, found {count}"
           print(f"{count} audit entries match the schema")
           PY
+
+      # Contract test: match this repository's own restored projects against a synthetic advisory.
+      - name: Findings output matches schemas/findings.v1.schema.json
+        if: runner.os == 'Linux'
+        run: |
+          adv="$(mktemp -d)"
+          cat > "$adv/DEPRISK-CI-0001.json" <<'JSON'
+          {
+            "id": "DEPRISK-CI-0001",
+            "summary": "Synthetic advisory used by the CI contract test",
+            "database_specific": { "severity": "LOW" },
+            "affected": [
+              {
+                "package": { "ecosystem": "NuGet", "name": "newtonsoft.json" },
+                "ranges": [ { "type": "ECOSYSTEM", "events": [ { "introduced": "0" }, { "fixed": "9999.0.0" } ] } ]
+              }
+            ]
+          }
+          JSON
+          dotnet run --no-build -c Release --project src/DepRisk.Cli -- match . --advisories "$adv" --format json --out findings.json
+          python3 -m check_jsonschema --schemafile schemas/findings.v1.schema.json findings.json
+          python3 - <<'PY'
+          import json
+          doc = json.load(open("findings.json", encoding="utf-8"))
+          assert doc["findings"], "expected at least one finding for Newtonsoft.Json"
+          assert all(f["id"] == "DEPRISK-CI-0001" for f in doc["findings"])
+          print(len(doc["findings"]), "finding(s); schema OK")
+          PY

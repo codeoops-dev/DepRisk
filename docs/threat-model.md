@@ -56,6 +56,8 @@ Out of scope: the security of the user's own build system, package registries, a
 | T12 | False reassurance from "unreachable" labels | Conservative over-approximation; `unknown` and `possibly-reachable` are never treated as safe; labels carry evidence | designed |
 | T13 | Policy misconfiguration silently weakens gates | Config validation; `deprisk doctor` warnings; policy changes recorded in audit log | designed |
 | T14 | Supply-chain compromise of DepRisk itself | Signed releases and checksums; pinned and reviewed dependencies; reproducible builds as a goal; Trusted Publishing for packages | designed |
+| T15 | Hostile or poisoned advisory data: oversized or zip-bomb archives, symlinks leading outside the directory, ranges crafted to hide a vulnerability, terminal control sequences in text fields | Bounded reading (records, per-record and total bytes, measured on real decompressed bytes), zip entries never extracted, symlinks not followed, strict record parsing with invalid records counted and reported (`--strict` to fail), digest of the data recorded in results and audit entries, control characters stripped from table output, JSON escaped. Signed bundles (v0.5) add provenance | implemented (signed bundles designed) |
+| T16 | False assurance from incomplete or stale advisory data | Output always states the source, record counts, what was skipped, and that matching is by version only; "no findings" is worded as "only as complete as the data supplied"; data freshness policy planned with bundles | implemented (freshness policy designed) |
 
 ## 6. Residual risks and non-goals
 

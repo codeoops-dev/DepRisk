@@ -86,7 +86,8 @@ dotnet restore                    # scan reads the restore output (obj/project.a
 deprisk init                      # optional: start a signed audit log (.deprisk/)
 
 # 3. Analyze
-deprisk scan                      # read the resolved dependency graph (advisory matching: roadmap)
+deprisk scan                      # read the resolved dependency graph (offline)
+deprisk match --advisories NuGet.zip   # known vulnerabilities, from OSV data you supply (offline)
 deprisk reach                     # reachability analysis against your source
 deprisk rank                      # risk distribution per finding
 
@@ -163,6 +164,7 @@ All commands accept `--format table|json|sarif|openvex`, `--config <path>`, and 
 |---|---|
 | `deprisk init [path]` | Create `.deprisk/` with a signing key and start the signed audit log. Never overwrites anything. |
 | `deprisk scan [path]` | Parse lockfiles/SBOMs, build the dependency hypergraph, match advisories. |
+| `deprisk match [path]` | Match the resolved dependencies against local OSV advisories: `--advisories <dir\|.zip\|.json>` (required), `--format table\|json`, `--out`, `--strict`. Offline; matching is by version only. |
 | `deprisk graph` | Inspect or export the hypergraph (`--export dot\|json`). |
 | `deprisk reach` | Run reachability analysis from your entrypoints to vulnerable symbols. |
 | `deprisk rank` | Compute risk distributions and rank findings. |
@@ -527,6 +529,7 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 |---|---|---|
 | Ingest | NuGet restore graph (`project.assets.json`) via `deprisk scan` | ✅ |
 | Ingest | NuGet lockfiles (`packages.lock.json`) | 🗺️ |
+| Match | Advisory matching: OSV records (dir, .zip, .json), NuGet version ranges, offline, via `deprisk match` | ✅ |
 | Ingest | npm lockfiles | 🗺️ |
 | Ingest | CycloneDX / SPDX SBOM | 🗺️ |
 | Model | Dependency hypergraph | 🗺️ |
