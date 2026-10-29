@@ -97,3 +97,38 @@ jobs:
           assert all(f["id"] == "DEPRISK-CI-0001" for f in doc["findings"])
           print(len(doc["findings"]), "finding(s); schema OK")
           PY
+
+      # Contract test: rank this repository's own restored projects with synthetic advisory, EPSS, and KEV data.
+      - name: Ranking output matches schemas/ranking.v1.schema.json
+        if: runner.os == 'Linux'
+        run: |
+          data="$(mktemp -d)"
+          mkdir "$data/osv"
+          cat > "$data/osv/DEPRISK-CI-0002.json" <<'JSON'
+          {
+            "id": "DEPRISK-CI-0002",
+            "aliases": ["CVE-2099-0001"],
+            "summary": "Synthetic advisory used by the CI contract test",
+            "severity": [ { "type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H" } ],
+            "database_specific": { "severity": "CRITICAL" },
+            "affected": [
+              {
+                "package": { "ecosystem": "NuGet", "name": "newtonsoft.json" },
+                "ranges": [ { "type": "ECOSYSTEM", "events": [ { "introduced": "0" }, { "fixed": "9999.0.0" } ] } ]
+              }
+            ]
+          }
+          JSON
+          printf '#model_version:v0,score_date:2099-01-01T00:00:00Z\ncve,epss,percentile\nCVE-2099-0001,0.25,0.9\n' > "$data/epss.csv"
+          echo '{ "catalogVersion": "ci", "dateReleased": "2099-01-01T00:00:00Z", "vulnerabilities": [ { "cveID": "CVE-2099-0001", "dateAdded": "2099-01-01", "knownRansomwareCampaignUse": "Unknown" } ] }' > "$data/kev.json"
+          dotnet run --no-build -c Release --project src/DepRisk.Cli -- rank . --advisories "$data/osv" --epss "$data/epss.csv" --kev "$data/kev.json" --format json --out ranking.json
+          python3 -m check_jsonschema --schemafile schemas/ranking.v1.schema.json ranking.json
+          python3 - <<'PY'
+          import json
+          doc = json.load(open("ranking.json", encoding="utf-8"))
+          assert doc["findings"], "expected at least one finding for Newtonsoft.Json"
+          first = doc["findings"][0]
+          assert first["rank"] == 1 and first["signals"]["kev"] is not None and first["signals"]["epss"] is not None
+          assert first["signals"]["cvss"]["baseScore"] == 9.8
+          print(len(doc["findings"]), "ranked finding(s); schema OK")
+          PY

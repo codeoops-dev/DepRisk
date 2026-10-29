@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/codeoops-dev/deprisk/schemas/ranking.v1.schema.json",
+  "title": "DepRisk ranking (v1)",
+  "description": "Output of 'deprisk rank --format json': findings (see findings.v1) ordered by the baseline method, with the exploitation and severity signals used. Deterministic: no timestamps, no absolute paths. Dates inside 'signals' are the ones published in the EPSS and KEV data, never the current time. Text fields come from third-party data and are untrusted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "tool", "ecosystem", "method", "ordering", "advisories", "signals", "projectsScanned", "packagesScanned", "packagesSkipped", "findings"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ecosystem": { "enum": ["nuget"] },
+    "method": { "description": "The ranking method. 'baseline-kev-epss-cvss' is the reference (B2) the later model is evaluated against.", "enum": ["baseline-kev-epss-cvss"] },
+    "ordering": {
+      "description": "The sort keys in priority order. Each key only orders findings that are equal on the keys before it. Missing data sorts last on its key.",
+      "type": "array",
+      "items": { "enum": ["kev", "epss", "cvss", "severity", "id"] },
+      "minItems": 1
+    },
+    "advisories": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "digest", "count", "skippedWithdrawn", "skippedNotNuGet", "skippedInvalid"],
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "count": { "type": "integer", "minimum": 0 },
+        "skippedWithdrawn": { "type": "integer", "minimum": 0 },
+        "skippedNotNuGet": { "type": "integer", "minimum": 0 },
+        "skippedInvalid": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "signals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["epss", "kev"],
+      "properties": {
+        "epss": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/signalSource" }] },
+        "kev": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/signalSource" }] }
+      }
+    },
+    "projectsScanned": { "type": "integer", "minimum": 0 },
+    "packagesScanned": { "type": "integer", "minimum": 0 },
+    "packagesSkipped": { "type": "integer", "minimum": 0 },
+    "findings": {
+      "description": "Most urgent first. Ranks are 1..N without ties.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/rankedFinding" }
+    }
+  },
+  "$defs": {
+    "signalSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "digest", "version", "date", "entries", "skipped"],
+      "properties": {
+        "source": { "description": "File name only.", "type": "string", "minLength": 1 },
+        "digest": { "description": "SHA-256 of the supplied file's bytes.", "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "version": { "description": "EPSS model version or KEV catalog version, as published in the data.", "type": ["string", "null"] },
+        "date": { "description": "EPSS score date or KEV release date, as published in the data.", "type": ["string", "null"] },
+        "entries": { "type": "integer", "minimum": 0 },
+        "skipped": { "description": "Malformed rows or entries that were ignored.", "type": "integer", "minimum": 0 }
+      }
+    },
+    "rankedFinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rank", "id", "aliases", "summary", "severity", "package", "fixedVersions", "locations", "signals"],
+      "properties": {
+        "rank": { "type": "integer", "minimum": 1 },
+        "id": { "type": "string", "minLength": 1 },
+        "aliases": { "type": "array", "items": { "type": "string" } },
+        "summary": { "type": ["string", "null"] },
+        "severity": { "description": "The advisory database's own rating, if present.", "type": ["string", "null"] },
+        "package": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "version"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "version": { "type": "string", "minLength": 1 }
+          }
+        },
+        "fixedVersions": { "type": "array", "items": { "type": "string" } },
+        "locations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["project", "target", "isDirect"],
+            "properties": {
+              "project": { "type": "string", "minLength": 1 },
+              "target": { "type": "string", "minLength": 1 },
+              "isDirect": { "type": "boolean" }
+            }
+          }
+        },
+        "signals": {
+          "description": "null means the signal is not available for this finding, never zero.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cvss", "epss", "kev"],
+          "properties": {
+            "cvss": {
+              "oneOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["version", "vector", "baseScore", "rating"],
+                  "properties": {
+                    "version": { "enum": ["3.0", "3.1"] },
+                    "vector": { "type": "string", "pattern": "^CVSS:3\\.[01]/" },
+                    "baseScore": { "type": "number", "minimum": 0, "maximum": 10 },
+                    "rating": { "enum": ["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"] }
+                  }
+                }
+              ]
+            },
+            "epss": {
+              "oneOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["cve", "probability", "percentile"],
+                  "properties": {
+                    "cve": { "type": "string", "pattern": "^CVE-\\d{4}-\\d{4,}$" },
+                    "probability": { "type": "number", "minimum": 0, "maximum": 1 },
+                    "percentile": { "type": "number", "minimum": 0, "maximum": 1 }
+                  }
+                }
+              ]
+            },
+            "kev": {
+              "oneOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["cve", "dateAdded", "knownRansomwareUse"],
+                  "properties": {
+                    "cve": { "type": "string", "pattern": "^CVE-\\d{4}-\\d{4,}$" },
+                    "dateAdded": { "type": ["string", "null"] },
+                    "knownRansomwareUse": { "type": "boolean" }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
