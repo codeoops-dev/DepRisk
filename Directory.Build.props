@@ -19,7 +19,7 @@
   <!-- Version: change here only. VersionSuffix is dropped for stable releases. -->
   <PropertyGroup>
     <VersionPrefix>0.0.1</VersionPrefix>
-    <VersionSuffix>alpha.1</VersionSuffix>
+    <VersionSuffix>alpha.2</VersionSuffix>
     <Authors>Jahed Kabiri</Authors>
     <Company>codeoops-dev</Company>
     <Product>DepRisk</Product>
