@@ -79,6 +79,9 @@ internal static class CliApp
             case "rank":
                 return RankCommand.Run(args[1..], output, context);
 
+            case "ci":
+                return RankCommand.Run(args[1..], output, error, context, "ci", ci: true);
+
             case "audit":
                 return AuditCommand.Run(args[1..], output, error, context);
 
@@ -105,13 +108,16 @@ internal static class CliApp
         output.WriteLine("                  --format table|json  --out <file>  --strict");
         output.WriteLine("  rank [path]   Like match, ordered by CISA KEV, EPSS, and CVSS (baseline; offline)");
         output.WriteLine("                  --advisories <...> (required)  --epss <csv[.gz]>  --kev <json>");
-        output.WriteLine("                  --format table|json  --out <file>  --strict");
+        output.WriteLine("                  --format table|json|sarif  --out <file>  --strict");
+        output.WriteLine("  ci [path]     Like rank, plus a policy gate: exit code 1 if a finding matches --fail-on");
+        output.WriteLine("                  --fail-on \"kev&fixable,cvss>=9\"  (terms: any kev ransomware direct fixable cvss>=N epss>=P severity>=LEVEL)");
+        output.WriteLine("                  --format table|json|sarif  --out <file>  (verdict is printed on standard error)");
         output.WriteLine("  audit verify  Verify the audit log (--pubkey <file>, --head <hash>)");
         output.WriteLine("  doctor        Check that this installation is healthy");
         output.WriteLine("  version       Print the version");
         output.WriteLine("  help          Show this help");
         output.WriteLine();
-        output.WriteLine("Planned commands (see the roadmap): graph, reach, plan, verify, apply, explain, vex, bundle, bench, ci");
+        output.WriteLine("Planned commands (see the roadmap): graph, reach, plan, verify, apply, explain, vex, bundle, bench");
         output.WriteLine($"Documentation: {ProductInfo.RepositoryUrl}");
     }
 }

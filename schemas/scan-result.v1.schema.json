@@ -5,31 +5,60 @@
   "description": "Output of 'deprisk scan --format json': the resolved dependency graph of every project found. Deterministic: contains no timestamps and no machine-specific absolute paths.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "tool", "ecosystem", "projects"],
+  "required": [
+    "schemaVersion",
+    "tool",
+    "ecosystem",
+    "projects"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": {
+      "const": 1
+    },
     "tool": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "version"],
+      "required": [
+        "name",
+        "version"
+      ],
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
-        "version": { "type": "string", "minLength": 1 }
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
-    "ecosystem": { "enum": ["nuget"] },
+    "ecosystem": {
+      "enum": [
+        "nuget"
+      ]
+    },
     "projects": {
       "type": "array",
-      "items": { "$ref": "#/$defs/project" }
+      "items": {
+        "$ref": "#/$defs/project"
+      }
     }
   },
   "$defs": {
     "project": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "assetsFile", "targets"],
+      "required": [
+        "name",
+        "assetsFile",
+        "targets"
+      ],
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
         "assetsFile": {
           "description": "Path of the assets file relative to the scanned directory, with forward slashes.",
           "type": "string",
@@ -37,14 +66,26 @@
         },
         "targets": {
           "type": "array",
-          "items": { "$ref": "#/$defs/target" }
+          "items": {
+            "$ref": "#/$defs/target"
+          }
+        },
+        "projectFile": {
+          "description": "The project file (for example src/App/App.csproj) relative to the scanned directory, forward slashes, when it can be determined from the assets file's location; otherwise null.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },
     "target": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "packages"],
+      "required": [
+        "name",
+        "packages"
+      ],
       "properties": {
         "name": {
           "description": "Target framework (or, for assets file version 4, the target framework alias), optionally followed by '/' and a runtime identifier, for example 'net10.0' or 'net10.0/win-x64'.",
@@ -53,17 +94,30 @@
         },
         "packages": {
           "type": "array",
-          "items": { "$ref": "#/$defs/package" }
+          "items": {
+            "$ref": "#/$defs/package"
+          }
         }
       }
     },
     "package": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "version", "isDirect", "dependencies"],
+      "required": [
+        "id",
+        "version",
+        "isDirect",
+        "dependencies"
+      ],
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "version": { "type": "string", "minLength": 1 },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
         "isDirect": {
           "description": "True if the project references this package itself; false if it is only pulled in by other packages.",
           "type": "boolean"
@@ -73,9 +127,15 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["id", "range"],
+            "required": [
+              "id",
+              "range"
+            ],
             "properties": {
-              "id": { "type": "string", "minLength": 1 },
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
               "range": {
                 "description": "Version range the package declares for this dependency, in NuGet notation.",
                 "type": "string"

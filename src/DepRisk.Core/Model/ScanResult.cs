@@ -16,8 +16,16 @@ public sealed record ResolvedPackage(
 /// <summary>The resolved package set for one target framework (or framework/runtime pair).</summary>
 public sealed record TargetGraph(string Name, IReadOnlyList<ResolvedPackage> Packages);
 
-/// <summary>The dependency graph of one project.</summary>
-public sealed record ProjectGraph(string Name, string AssetsFile, IReadOnlyList<TargetGraph> Targets);
+/// <summary>
+/// The dependency graph of one project. <c>ProjectFile</c> is the project file (for example <c>src/App/App.csproj</c>) relative
+/// to the scanned directory, with forward slashes, when it can be determined; null otherwise. It lets tools such as code
+/// scanning attach results to a file that exists in the repository.
+/// </summary>
+public sealed record ProjectGraph(
+    string Name,
+    string AssetsFile,
+    IReadOnlyList<TargetGraph> Targets,
+    string? ProjectFile = null);
 
 /// <summary>
 /// Result of <c>deprisk scan</c>. This is a public contract: see schemas/scan-result.v1.schema.json.

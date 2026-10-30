@@ -68,7 +68,9 @@ public static class NuGetAssetsParser
             string projectName = ReadProjectName(root) ?? fallbackProjectName;
             List<TargetGraph> targets = ReadTargets(root, directByFramework, displayPath);
 
-            return new ProjectGraph(projectName, displayPath, targets);
+            // Only the file name is kept (the assets file stores an absolute, machine-specific path); the caller
+            // combines it with the project's directory.
+            return new ProjectGraph(projectName, displayPath, targets, ReadProjectFileName(root));
         }
     }
 
@@ -83,6 +85,25 @@ public static class NuGetAssetsParser
         {
             string? value = name.GetString();
             return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+
+        return null;
+    }
+
+    private static string? ReadProjectFileName(JsonElement root)
+    {
+        if (root.TryGetProperty("project", out JsonElement project)
+            && project.ValueKind == JsonValueKind.Object
+            && project.TryGetProperty("restore", out JsonElement restore)
+            && restore.ValueKind == JsonValueKind.Object
+            && restore.TryGetProperty("projectPath", out JsonElement path)
+            && path.ValueKind == JsonValueKind.String
+            && path.GetString() is { Length: > 0 } text)
+        {
+            // The path may use either separator, whatever the machine that restored the project.
+            string name = text[(text.LastIndexOfAny(['/', '\\']) + 1)..];
+
+            return name.Length is > 0 and <= 255 && !name.Any(char.IsControl) ? name : null;
         }
 
         return null;

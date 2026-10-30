@@ -85,7 +85,31 @@ public static class ScanService
             ? name
             : "unknown";
 
-        return new Loaded(NuGetAssetsParser.Parse(json, display, fallbackName), Digest.Sha256Hex(bytes));
+        ProjectGraph parsed = NuGetAssetsParser.Parse(json, display, fallbackName);
+        return new Loaded(parsed with { ProjectFile = ComposeProjectFile(display, parsed.ProjectFile) }, Digest.Sha256Hex(bytes));
+    }
+
+    /// <summary>
+    /// "src/App/obj/project.assets.json" and the file name "App.csproj" give "src/App/App.csproj".
+    /// Returns null when the assets file is not in an "obj" directory below the scanned root.
+    /// </summary>
+    public static string? ComposeProjectFile(string assetsDisplayPath, string? projectFileName)
+    {
+        if (projectFileName is null)
+        {
+            return null;
+        }
+
+        const string suffix = "obj/" + AssetsFileLocator.FileName;
+
+        if (assetsDisplayPath.Equals(suffix, StringComparison.Ordinal))
+        {
+            return projectFileName;
+        }
+
+        return assetsDisplayPath.EndsWith("/" + suffix, StringComparison.Ordinal)
+            ? assetsDisplayPath[..^suffix.Length] + projectFileName
+            : null;
     }
 
     private sealed record Loaded(ProjectGraph Graph, string FileDigest);

@@ -13,8 +13,11 @@ public sealed record AdvisorySourceInfo(
 
 public sealed record FindingPackage(string Id, string Version);
 
-/// <summary>One place where an affected package is used.</summary>
-public sealed record FindingLocation(string Project, string Target, bool IsDirect);
+/// <summary>
+/// One place where an affected package is used. <c>ProjectFile</c> is the file that stands for the project in the repository:
+/// the project file when it is known (see <see cref="ProjectGraph"/>), otherwise the assets file path. Relative, forward slashes.
+/// </summary>
+public sealed record FindingLocation(string Project, string Target, bool IsDirect, string? ProjectFile = null);
 
 /// <summary>
 /// One advisory that applies to one package version, with every project and target that uses that version.

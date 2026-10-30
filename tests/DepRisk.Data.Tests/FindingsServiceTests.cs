@@ -57,7 +57,8 @@ public class FindingsServiceTests
         Assert.Equal(new[] { "2.0.0" }, finding.FixedVersions.ToArray());
 
         FindingLocation location = Assert.Single(finding.Locations);
-        Assert.Equal(new FindingLocation("App", "net10.0", false), location);
+        // No project file is known for this graph, so the location falls back to the assets file path.
+        Assert.Equal(new FindingLocation("App", "net10.0", false, "App/obj/project.assets.json"), location);
         Assert.Equal(2, result.PackagesScanned);
         Assert.Equal(1, result.ProjectsScanned);
         Assert.Equal(1, result.Advisories.SkippedInvalid);

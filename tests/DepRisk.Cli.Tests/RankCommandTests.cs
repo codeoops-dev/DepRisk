@@ -204,7 +204,8 @@ public sealed class RankCommandTests : IDisposable
         Assert.Equal((int)ExitCode.InvalidInput, Run("rank", _root, "--advisories", AdvisoryDir, "--epss", Path.Combine(_root, "missing.csv")).Code);
         Assert.Equal((int)ExitCode.InvalidInput, Run("rank", _root, "--advisories", AdvisoryDir, "--kev", Path.Combine(_root, "missing.json")).Code);
         Assert.Equal((int)ExitCode.InvalidInput, Run("rank", _root, "--advisories", AdvisoryDir, "--epss").Code);
-        Assert.Equal((int)ExitCode.InvalidInput, Run("rank", _root, "--advisories", AdvisoryDir, "--format", "sarif").Code);
+        Assert.Equal((int)ExitCode.InvalidInput, Run("rank", _root, "--advisories", AdvisoryDir, "--format", "xml").Code);
+        Assert.Equal((int)ExitCode.InvalidInput, Run("rank", _root, "--advisories", AdvisoryDir, "--fail-on", "kev").Code);
         Assert.Equal((int)ExitCode.InvalidInput, Run("rank", _root, "--advisories", AdvisoryDir, "--nope").Code);
         Assert.Equal((int)ExitCode.InvalidInput, Run("rank", _root, _root, "--advisories", AdvisoryDir).Code);
 
@@ -291,5 +292,23 @@ public sealed class RankCommandTests : IDisposable
 
         Assert.Equal((int)ExitCode.Success, code);
         Assert.Contains("No known vulnerabilities found", output);
+    }
+
+    [Fact]
+    public void Sarif_output_is_available_for_rank()
+    {
+        WriteSignals();
+
+        (int code, string output, string error) = Run("rank", _root, "--advisories", AdvisoryDir, "--epss", EpssPath, "--kev", KevPath, "--format", "sarif");
+
+        Assert.Equal((int)ExitCode.Success, code);
+        Assert.Equal(string.Empty, error);
+
+        using JsonDocument document = JsonDocument.Parse(output);
+        Assert.Equal("2.1.0", document.RootElement.GetProperty("version").GetString());
+
+        JsonElement results = document.RootElement.GetProperty("runs")[0].GetProperty("results");
+        Assert.Equal(new[] { "GHSA-bbb", "GHSA-ccc", "GHSA-aaa" }, results.EnumerateArray().Select(r => r.GetProperty("ruleId").GetString()).ToArray());
+        Assert.Equal("error", results[0].GetProperty("level").GetString());
     }
 }

@@ -5,78 +5,191 @@
   "description": "Output of 'deprisk match --format json': advisories that apply to the package versions in the scanned projects. Deterministic: no timestamps, no absolute paths. Text fields (summary, ids, severity) come from the advisory database and are untrusted data.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "tool", "ecosystem", "advisories", "projectsScanned", "packagesScanned", "packagesSkipped", "findings"],
+  "required": [
+    "schemaVersion",
+    "tool",
+    "ecosystem",
+    "advisories",
+    "projectsScanned",
+    "packagesScanned",
+    "packagesSkipped",
+    "findings"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": {
+      "const": 1
+    },
     "tool": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "version"],
+      "required": [
+        "name",
+        "version"
+      ],
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
-        "version": { "type": "string", "minLength": 1 }
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
-    "ecosystem": { "enum": ["nuget"] },
+    "ecosystem": {
+      "enum": [
+        "nuget"
+      ]
+    },
     "advisories": {
       "description": "The advisory data the result was computed from.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["source", "digest", "count", "skippedWithdrawn", "skippedNotNuGet", "skippedInvalid"],
+      "required": [
+        "source",
+        "digest",
+        "count",
+        "skippedWithdrawn",
+        "skippedNotNuGet",
+        "skippedInvalid"
+      ],
       "properties": {
-        "source": { "description": "File or directory name only, never a full path.", "type": "string", "minLength": 1 },
-        "digest": { "description": "SHA-256 of the advisory source (the file's bytes for a .zip or .json; a digest of per-file digests for a directory), lowercase hex.", "type": "string", "pattern": "^[0-9a-f]{64}$" },
-        "count": { "description": "Advisories with at least one NuGet entry that were used.", "type": "integer", "minimum": 0 },
-        "skippedWithdrawn": { "type": "integer", "minimum": 0 },
-        "skippedNotNuGet": { "type": "integer", "minimum": 0 },
-        "skippedInvalid": { "description": "Records that could not be read. Greater than zero means vulnerabilities may be missing.", "type": "integer", "minimum": 0 }
+        "source": {
+          "description": "File or directory name only, never a full path.",
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "description": "SHA-256 of the advisory source (the file's bytes for a .zip or .json; a digest of per-file digests for a directory), lowercase hex.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "count": {
+          "description": "Advisories with at least one NuGet entry that were used.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "skippedWithdrawn": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skippedNotNuGet": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skippedInvalid": {
+          "description": "Records that could not be read. Greater than zero means vulnerabilities may be missing.",
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
-    "projectsScanned": { "type": "integer", "minimum": 0 },
-    "packagesScanned": { "description": "Distinct package id and version pairs checked.", "type": "integer", "minimum": 0 },
-    "packagesSkipped": { "description": "Distinct package versions that could not be parsed as NuGet versions and were therefore not checked.", "type": "integer", "minimum": 0 },
+    "projectsScanned": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "packagesScanned": {
+      "description": "Distinct package id and version pairs checked.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "packagesSkipped": {
+      "description": "Distinct package versions that could not be parsed as NuGet versions and were therefore not checked.",
+      "type": "integer",
+      "minimum": 0
+    },
     "findings": {
       "description": "Sorted by advisory id, then package id, then version.",
       "type": "array",
-      "items": { "$ref": "#/$defs/finding" }
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
     }
   },
   "$defs": {
     "finding": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "aliases", "summary", "severity", "scores", "package", "fixedVersions", "locations"],
+      "required": [
+        "id",
+        "aliases",
+        "summary",
+        "severity",
+        "scores",
+        "package",
+        "fixedVersions",
+        "locations"
+      ],
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "aliases": { "type": "array", "items": { "type": "string" } },
-        "summary": { "type": ["string", "null"] },
-        "severity": { "description": "The database's own rating (for example GitHub's CRITICAL, HIGH, MODERATE, LOW), if present.", "type": ["string", "null"] },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "severity": {
+          "description": "The database's own rating (for example GitHub's CRITICAL, HIGH, MODERATE, LOW), if present.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "scores": {
           "description": "Published severity scores, for example a CVSS vector. Not interpreted by 'match'.",
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["type", "score"],
+            "required": [
+              "type",
+              "score"
+            ],
             "properties": {
-              "type": { "type": "string" },
-              "score": { "type": "string" }
+              "type": {
+                "type": "string"
+              },
+              "score": {
+                "type": "string"
+              }
             }
           }
         },
         "package": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["id", "version"],
+          "required": [
+            "id",
+            "version"
+          ],
           "properties": {
-            "id": { "type": "string", "minLength": 1 },
-            "version": { "description": "Normalized NuGet version of the installed package.", "type": "string", "minLength": 1 }
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "description": "Normalized NuGet version of the installed package.",
+              "type": "string",
+              "minLength": 1
+            }
           }
         },
         "fixedVersions": {
           "description": "Versions above the installed one that the advisory lists as fixed, ascending. The first is the smallest known upgrade. Empty if no fix is known.",
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
         "locations": {
           "type": "array",
@@ -84,11 +197,30 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["project", "target", "isDirect"],
+            "required": [
+              "project",
+              "target",
+              "isDirect"
+            ],
             "properties": {
-              "project": { "type": "string", "minLength": 1 },
-              "target": { "type": "string", "minLength": 1 },
-              "isDirect": { "type": "boolean" }
+              "project": {
+                "type": "string",
+                "minLength": 1
+              },
+              "target": {
+                "type": "string",
+                "minLength": 1
+              },
+              "isDirect": {
+                "type": "boolean"
+              },
+              "projectFile": {
+                "description": "The file that stands for the project in the repository: the project file when known, otherwise the assets file path. Relative, forward slashes.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
             }
           }
         }

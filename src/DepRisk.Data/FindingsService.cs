@@ -66,7 +66,7 @@ public static class FindingsService
                             findings[key] = accumulator;
                         }
 
-                        accumulator.Locations.Add(new FindingLocation(project.Name, target.Name, package.IsDirect));
+                        accumulator.Locations.Add(new FindingLocation(project.Name, target.Name, package.IsDirect, project.ProjectFile ?? project.AssetsFile));
                     }
                 }
             }

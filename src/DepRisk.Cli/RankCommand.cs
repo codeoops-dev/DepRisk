@@ -4,23 +4,30 @@ using DepRisk.Audit;
 using DepRisk.Core;
 using DepRisk.Core.Cvss;
 using DepRisk.Core.Model;
+using DepRisk.Core.Policy;
 using DepRisk.Data;
+using DepRisk.Data.Sarif;
 
 namespace DepRisk.Cli;
 
 /// <summary>
-/// <c>deprisk rank [path] --advisories &lt;...&gt; [--epss file] [--kev file] [--format table|json] [--out file] [--strict]</c>:
+/// <c>deprisk rank [path] --advisories &lt;...&gt; [--epss file] [--kev file] [--format table|json|sarif] [--out file] [--strict]</c>:
 /// like <c>match</c>, then orders the findings with the baseline ranking (CISA KEV, then EPSS, then CVSS base score).
 /// Offline: EPSS and KEV are local files you supply. This is the reference baseline; it considers neither
 /// reachability nor uncertainty yet.
+/// <c>deprisk ci</c> is the same analysis plus a policy gate (<c>--fail-on</c>): exit code 1 when a finding trips it.
 /// </summary>
 internal static class RankCommand
 {
-    private static readonly string[] SupportedFormats = ["table", "json"];
+    private static readonly string[] SupportedFormats = ["table", "json", "sarif"];
 
-    public static ExitCode Run(string[] args, TextWriter output, CliContext context)
+    public static ExitCode Run(string[] args, TextWriter output, CliContext context) =>
+        Run(args, output, TextWriter.Null, context, "rank", ci: false);
+
+    public static ExitCode Run(string[] args, TextWriter output, TextWriter error, CliContext context, string commandName, bool ci)
     {
         string path = ".";
+        string? failOn = null;
         string? advisories = null;
         string? epss = null;
         string? kev = null;
@@ -77,9 +84,17 @@ internal static class RankCommand
             {
                 strict = true;
             }
+            else if (ci && arg == "--fail-on")
+            {
+                failOn = ReadValue(args, ref i, arg);
+            }
+            else if (ci && arg.StartsWith("--fail-on=", StringComparison.Ordinal))
+            {
+                failOn = arg["--fail-on=".Length..];
+            }
             else if (arg.StartsWith('-'))
             {
-                throw new InvalidInputException($"unknown option '{arg}' for 'rank'.");
+                throw new InvalidInputException($"unknown option '{arg}' for '{commandName}'.");
             }
             else if (!pathSet)
             {
@@ -88,22 +103,32 @@ internal static class RankCommand
             }
             else
             {
-                throw new InvalidInputException("'rank' takes at most one path.");
+                throw new InvalidInputException($"'{commandName}' takes at most one path.");
             }
         }
 
         if (!SupportedFormats.Contains(format, StringComparer.Ordinal))
         {
             throw new InvalidInputException(
-                $"format '{format}' is not supported for 'rank' (supported: {string.Join(", ", SupportedFormats)}).");
+                $"format '{format}' is not supported for '{commandName}' (supported: {string.Join(", ", SupportedFormats)}).");
         }
 
         if (advisories is null)
         {
             throw new InvalidInputException(
-                "'rank' needs advisory data: pass --advisories <directory | .zip | .json> (OSV format). "
+                $"'{commandName}' needs advisory data: pass --advisories <directory | .zip | .json> (OSV format). "
                 + "Optionally add --epss <epss_scores-*.csv[.gz]> (FIRST EPSS) and --kev <known_exploited_vulnerabilities.json> (CISA KEV). "
                 + "See docs/adr/0006-advisory-data-and-matching.md and docs/adr/0007-baseline-ranking.md.");
+        }
+
+        PolicyExpression? policy = null;
+
+        if (failOn is not null)
+        {
+            if (!PolicyExpression.TryParse(failOn, out policy, out string policyError))
+            {
+                throw new InvalidInputException($"--fail-on: {policyError}");
+            }
         }
 
         RankingOutcome outcome = RankingService.Rank(
@@ -115,7 +140,14 @@ internal static class RankCommand
             strict);
 
         string json = RankingResultJson.Serialize(outcome.Result);
-        string text = format == "json" ? json : RenderTable(outcome);
+        string text = format switch
+        {
+            "json" => json,
+            "sarif" => SarifWriter.Serialize(outcome.Result),
+            _ => RenderTable(outcome),
+        };
+
+        IReadOnlyList<RankedFinding> tripped = policy is null ? [] : policy.Evaluate(outcome.Result.Findings);
 
         List<AuditChange> changes = [];
 
@@ -136,9 +168,15 @@ internal static class RankCommand
             changes.Add(new AuditChange(outFile.Replace('\\', '/'), existed ? "existing file" : null, "written"));
         }
 
+        if (policy is not null)
+        {
+            // The decision is part of the record: expression -> result.
+            changes.Add(new AuditChange("policy gate", policy.Text, tripped.Count == 0 ? "passed" : $"failed ({tripped.Count} finding(s))"));
+        }
+
         AuditRecorder.RecordIfEnabled(
             context,
-            new AuditDraft("rank", ArgRedactor.Redact(args), outcome.InputsDigest, Digest.Sha256Hex(json), changes));
+            new AuditDraft(commandName, ArgRedactor.Redact(args), outcome.InputsDigest, Digest.Sha256Hex(json), changes));
 
         if (outFile is null)
         {
@@ -149,7 +187,39 @@ internal static class RankCommand
             output.Write($"Wrote {format} ranking to {outFile} ({outcome.Result.Findings.Count} finding(s))\n");
         }
 
-        return ExitCode.Success;
+        return ci ? ReportGate(error, policy, outcome.Result.Findings.Count, tripped) : ExitCode.Success;
+    }
+
+    /// <summary>The verdict goes to the error stream so that json and sarif on standard output stay clean.</summary>
+    private static ExitCode ReportGate(TextWriter error, PolicyExpression? policy, int total, IReadOnlyList<RankedFinding> tripped)
+    {
+        if (policy is null)
+        {
+            error.Write($"{ProductInfo.CommandName}: ci: no policy set (--fail-on), so the gate was not evaluated. {total} finding(s) reported.\n");
+            return ExitCode.Success;
+        }
+
+        string expression = TerminalText.Safe(policy.Text, 200);
+
+        if (tripped.Count == 0)
+        {
+            error.Write($"{ProductInfo.CommandName}: ci: policy gate PASSED ('{expression}'): none of {total} finding(s) match.\n");
+            return ExitCode.Success;
+        }
+
+        error.Write($"{ProductInfo.CommandName}: ci: policy gate FAILED ('{expression}'): {tripped.Count} of {total} finding(s) match:\n");
+
+        foreach (RankedFinding finding in tripped.Take(10))
+        {
+            error.Write($"  #{finding.Rank} {TerminalText.Safe(finding.Id, 60)}  {TerminalText.Safe(finding.Package.Id, 80)} {finding.Package.Version}\n");
+        }
+
+        if (tripped.Count > 10)
+        {
+            error.Write($"  ... and {tripped.Count - 10} more\n");
+        }
+
+        return ExitCode.PolicyGateFailed;
     }
 
     private static string ReadValue(string[] args, ref int index, string option)
@@ -163,7 +233,7 @@ internal static class RankCommand
         return args[index];
     }
 
-    private static string RenderTable(RankingOutcome outcome)
+    internal static string RenderTable(RankingOutcome outcome)
     {
         RankingResult result = outcome.Result;
         AdvisorySourceInfo source = result.Advisories;

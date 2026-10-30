@@ -178,7 +178,7 @@ All commands accept `--format table|json|sarif|openvex`, `--config <path>`, and 
 | `deprisk audit verify [path]` | Verify the integrity of the audit log (`--pubkey <file>`, `--head <hash>`). |
 | `deprisk bundle create\|import\|verify` | Build or load signed offline data bundles. |
 | `deprisk bench` | Run the reproducible benchmark suite. |
-| `deprisk ci` | One-shot CI mode with policy gates and SARIF output. |
+| `deprisk ci [path]` | One-shot CI mode: like `rank`, plus a policy gate. `--fail-on <expression>` (see below) makes it exit with code 1 when a finding matches; `--format table\|json\|sarif`, `--out`. The verdict is printed on standard error so json and sarif on standard output stay clean. |
 | `deprisk doctor` | Diagnose installation. |
 
 ### Examples
@@ -403,23 +403,64 @@ Bundles are versioned and timestamped; DepRisk warns when your data is older tha
 
 ## CI/CD integration
 
+`deprisk ci` runs the whole analysis (scan, match, rank) and then evaluates a **policy gate**. It is non-interactive, deterministic, offline (you supply the data files), writes SARIF for code-scanning platforms, and returns the documented exit codes: **0** the gate passed (or no gate was set), **1** the gate failed, **4** bad input (including an invalid `--fail-on`).
+
+### Policy gate: `--fail-on`
+
+Clauses separated by `,` (any clause may fail the gate); each clause is terms joined by `&` (all must hold for the same finding).
+
+| Term | Holds when |
+|---|---|
+| `any` | there is any finding |
+| `kev` | the finding is listed in the CISA KEV catalog |
+| `ransomware` | it is in KEV with known ransomware use |
+| `direct` | the vulnerable package is a direct dependency somewhere |
+| `fixable` | the advisory lists a fixed version above the installed one |
+| `cvss>=N`, `cvss>N` | the CVSS v3 base score (0 to 10) compares so |
+| `epss>=P`, `epss>P` | the EPSS probability (0 to 1) compares so |
+| `severity>=LEVEL` | the database rating is at least `low`, `moderate` (or `medium`), `high`, `critical` |
+
+A term about a signal that is not available for a finding is false for it (never "zero"). Examples: `kev` · `kev&fixable,cvss>=9` · `direct&severity>=high`. Reachability terms (`reachable`, probability quantiles) do not exist yet and are rejected with an error, not ignored.
+
+### SARIF levels
+
+`error` if the finding is in KEV, or its CVSS rating (else the database rating) is critical or high; `warning` for medium or moderate and for unknown ratings; `note` for low. Rules carry GitHub's `security-severity` (the CVSS base score) when known. Results point at the project files that use the package.
+
+### GitHub Actions example
+
 ```yaml
 # .github/workflows/deprisk.yml
 name: deprisk
 on: [pull_request]
+permissions:
+  contents: read
+  security-events: write      # to upload SARIF
 jobs:
   deprisk:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: dotnet tool install -g DepRisk.Cli
-      - run: deprisk ci --format sarif --out deprisk.sarif --fail-on reachable:p95>=7
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore    # deprisk reads obj/project.assets.json
+      - run: dotnet tool install -g DepRisk.Cli --version 0.1.0-alpha.1   # pin the version
+      - name: Fetch advisory data (check the URLs; see docs/adr/0006 and 0007)
+        run: |
+          curl -fsSL -o NuGet.zip https://osv-vulnerabilities.storage.googleapis.com/NuGet/all.zip
+          curl -fsSL -o kev.json https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json
+          curl -fsSL -o epss.csv.gz https://epss.empiricalsecurity.com/epss_scores-current.csv.gz
+      - name: DepRisk gate
+        run: >
+          deprisk ci --advisories NuGet.zip --epss epss.csv.gz --kev kev.json
+          --fail-on "kev&fixable,cvss>=9" --format sarif --out deprisk.sarif
       - uses: github/codeql-action/upload-sarif@v3
+        if: always()           # upload findings even when the gate fails
         with:
           sarif_file: deprisk.sarif
 ```
 
-`deprisk ci` is non-interactive, deterministic, honors policy gates, and returns the documented exit codes. A pre-built GitHub Action wrapper is on the roadmap.
+The advisory, EPSS, and KEV files are third-party data fetched by *your* workflow; DepRisk itself never downloads anything. Their digests and published dates are recorded in the output. A GitHub Action wrapper is on the roadmap.
 
 ## Configuration
 
@@ -546,8 +587,11 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 | Audit | Hash-chained signed log, `init`, `audit verify` (head pinning included) | ✅ |
 | Audit | Merkle checkpoints and external anchoring | 🗺️ |
 | Offline | Signed bundles | 🗺️ |
-| Output | SARIF / JSON / OpenVEX | 🗺️ |
-| CI | `deprisk ci` + policy gates | 🗺️ |
+| Output | SARIF 2.1.0 and JSON for ranked findings (`rank`, `ci`) | ✅ |
+| Output | OpenVEX | 🗺️ |
+| CI | `deprisk ci` + policy gate (`kev`, `ransomware`, `direct`, `fixable`, `cvss`, `epss`, `severity`) | ✅ |
+| CI | Reachability terms in the policy gate | 🗺️ |
+| CI | GitHub Action wrapper | 🗺️ |
 | Explain | Deterministic evidence report | 🗺️ |
 | Explain | Optional local-LLM narrative | 🗺️ |
 
