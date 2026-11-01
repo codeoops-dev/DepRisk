@@ -171,3 +171,18 @@ jobs:
           set -e
           echo "gate exit codes: fail=$fail_code pass=$pass_code invalid=$invalid_code"
           test "$fail_code" = "1" && test "$pass_code" = "0" && test "$invalid_code" = "4"
+
+      # Contract test: the hypergraph of this repository's own restored projects must match its schema.
+      - name: Graph output matches schemas/graph.v1.schema.json
+        if: runner.os == 'Linux'
+        run: |
+          dotnet run --no-build -c Release --project src/DepRisk.Cli -- graph . --format json --out graph.json
+          python3 -m check_jsonschema --schemafile schemas/graph.v1.schema.json graph.json
+          python3 - <<'PY'
+          import json
+          doc = json.load(open("graph.json", encoding="utf-8"))
+          targets = [t for p in doc["projects"] for t in p["targets"]]
+          assert targets, "expected at least one target"
+          assert any(t["stats"]["hyperedges"] > 0 for t in targets), "expected hyperedges in the test projects"
+          print(len(targets), "target(s); schema OK; violated =", sum(t["stats"]["violated"] for t in targets))
+          PY

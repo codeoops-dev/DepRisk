@@ -73,6 +73,9 @@ internal static class CliApp
             case "scan":
                 return ScanCommand.Run(args[1..], output, context);
 
+            case "graph":
+                return GraphCommand.Run(args[1..], output, context);
+
             case "match":
                 return MatchCommand.Run(args[1..], output, context);
 
@@ -103,6 +106,8 @@ internal static class CliApp
         output.WriteLine("  scan [path]   Read the restored NuGet dependency graph (project.assets.json)");
         output.WriteLine("                  --format table|json   output format (default: table)");
         output.WriteLine("                  --out <file>          write the result to a file");
+        output.WriteLine("  graph [path]  Dependency hypergraph of the resolved graph; checks every requirement");
+        output.WriteLine("                  --format table|json|dot  --out <file>");
         output.WriteLine("  match [path]  Match dependencies against local OSV advisories (offline)");
         output.WriteLine("                  --advisories <dir|.zip|.json>   advisory data (required)");
         output.WriteLine("                  --format table|json  --out <file>  --strict");
@@ -117,7 +122,7 @@ internal static class CliApp
         output.WriteLine("  version       Print the version");
         output.WriteLine("  help          Show this help");
         output.WriteLine();
-        output.WriteLine("Planned commands (see the roadmap): graph, reach, plan, verify, apply, explain, vex, bundle, bench");
+        output.WriteLine("Planned commands (see the roadmap): reach, plan, verify, apply, explain, vex, bundle, bench");
         output.WriteLine($"Documentation: {ProductInfo.RepositoryUrl}");
     }
 }

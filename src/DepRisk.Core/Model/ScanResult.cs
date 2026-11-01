@@ -6,12 +6,16 @@ public sealed record ToolInfo(string Name, string Version);
 /// <summary>A declared dependency of a package: the package id and the version range it asks for.</summary>
 public sealed record DependencyRef(string Id, string Range);
 
-/// <summary>A package as resolved by the package manager for one target.</summary>
+/// <summary>
+/// A package as resolved by the package manager for one target. <c>Requested</c> is the version constraint the project
+/// itself asked for, as written in the assets file (for example <c>&gt;= 1.2.0</c>); null for transitive packages.
+/// </summary>
 public sealed record ResolvedPackage(
     string Id,
     string Version,
     bool IsDirect,
-    IReadOnlyList<DependencyRef> Dependencies);
+    IReadOnlyList<DependencyRef> Dependencies,
+    string? Requested = null);
 
 /// <summary>The resolved package set for one target framework (or framework/runtime pair).</summary>
 public sealed record TargetGraph(string Name, IReadOnlyList<ResolvedPackage> Packages);

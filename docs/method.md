@@ -20,6 +20,10 @@ Sources of hyperedges:
 
 Pairwise edges are the special case `|S_e| = 2`.
 
+### 1b. The resolved hypergraph (implemented by `deprisk graph`)
+
+`deprisk graph` materializes the hypergraph of the **current configuration** `c` (the resolved package set). For each package version `p@v` that requires packages `r_1 .. r_k` with declared ranges `R_1 .. R_k`, it builds the hyperedge with scope `S_e = {p, r_1, .., r_k}` and constraint "`c(r_i) in R_i` for all `i`"; the project adds one hyperedge over itself and its direct dependencies (the requested ranges). For every requirement it reports whether `c` satisfies it: true, false, or undecided when the required package is not in `c` or the range is not understood. A false requirement is a *violated hyperedge* (NuGet's NU1608). What is **not** materialized yet is the full allowed-tuple set `C_e` over candidate versions, which needs package-feed metadata and is part of the optimizer work (ADR 0009).
+
 ## 2. Advisories and fixes
 
 Each advisory `a ∈ A` has:

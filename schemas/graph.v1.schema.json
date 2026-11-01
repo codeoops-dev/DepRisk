@@ -1,0 +1,282 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/codeoops-dev/deprisk/schemas/graph.v1.schema.json",
+  "title": "DepRisk dependency hypergraph (v1)",
+  "description": "Output of 'deprisk graph --format json': the dependency hypergraph of the resolved graph of every project and target (docs/method.md section 1). One node per resolved package; one hyperedge per package version that requires something, plus one project hyperedge for the project's direct dependencies. Every requirement is checked against the resolved version. Deterministic: no timestamps, no absolute paths. Names and ranges come from package data and are untrusted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "tool",
+    "ecosystem",
+    "projects"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ecosystem": {
+      "enum": [
+        "nuget"
+      ]
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/project"
+      }
+    }
+  },
+  "$defs": {
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "projectFile",
+        "targets"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projectFile": {
+          "description": "Project file relative to the scanned directory, forward slashes, when known; otherwise null.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/target"
+          }
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "nodes",
+        "hyperedges",
+        "stats"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/node"
+          }
+        },
+        "hyperedges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hyperedge"
+          }
+        },
+        "stats": {
+          "$ref": "#/$defs/stats"
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "isDirect",
+        "requested"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "isDirect": {
+          "type": "boolean"
+        },
+        "requested": {
+          "description": "The constraint the project itself asked for, as written in the assets file (for example '>= 1.2.0'); null for transitive packages.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "hyperedge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "owner",
+        "scope",
+        "requires",
+        "satisfied",
+        "arity"
+      ],
+      "properties": {
+        "id": {
+          "description": "'project:<name>' for the project hyperedge, '<package>@<version>' for a package hyperedge. Unique within a target.",
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "project",
+            "package"
+          ]
+        },
+        "owner": {
+          "description": "The project name or '<package>@<version>'.",
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "description": "The packages the hyperedge constrains: the owner (its package id, or the project name) followed by every required package, in order.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requirement"
+          },
+          "minItems": 1
+        },
+        "satisfied": {
+          "description": "false if any requirement is violated; null if none is violated but some cannot be decided; otherwise true.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "arity": {
+          "description": "The number of packages in scope.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "package",
+        "range",
+        "resolved",
+        "satisfied"
+      ],
+      "properties": {
+        "package": {
+          "type": "string",
+          "minLength": 1
+        },
+        "range": {
+          "description": "The declared version range, as written.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "resolved": {
+          "description": "The version the project resolved to; null if the package is not in the resolved graph.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "satisfied": {
+          "description": "true or false when decided; null when the package is not resolved or the range is not understood (never guessed).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nodes",
+        "directNodes",
+        "hyperedges",
+        "maxArity",
+        "requirements",
+        "violated",
+        "unresolved",
+        "sharedRequirements"
+      ],
+      "properties": {
+        "nodes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "directNodes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hyperedges": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxArity": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "requirements": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "violated": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sharedRequirements": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

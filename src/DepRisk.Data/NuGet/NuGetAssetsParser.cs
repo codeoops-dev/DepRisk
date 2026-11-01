@@ -64,7 +64,7 @@ public static class NuGetAssetsParser
                     + $"Please report your .NET SDK version at {ProductInfo.RepositoryUrl}/issues.");
             }
 
-            Dictionary<string, HashSet<string>> directByFramework = ReadDirectDependencies(root);
+            Dictionary<string, Dictionary<string, string?>> directByFramework = ReadDirectDependencies(root);
             string projectName = ReadProjectName(root) ?? fallbackProjectName;
             List<TargetGraph> targets = ReadTargets(root, directByFramework, displayPath);
 
@@ -112,9 +112,9 @@ public static class NuGetAssetsParser
     /// <summary>
     /// "projectFileDependencyGroups" lists what the project itself references, as "Id &gt;= version" strings per framework.
     /// </summary>
-    private static Dictionary<string, HashSet<string>> ReadDirectDependencies(JsonElement root)
+    private static Dictionary<string, Dictionary<string, string?>> ReadDirectDependencies(JsonElement root)
     {
-        Dictionary<string, HashSet<string>> result = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, Dictionary<string, string?>> result = new(StringComparer.OrdinalIgnoreCase);
 
         if (!root.TryGetProperty("projectFileDependencyGroups", out JsonElement groups)
             || groups.ValueKind != JsonValueKind.Object)
@@ -124,7 +124,7 @@ public static class NuGetAssetsParser
 
         foreach (JsonProperty group in groups.EnumerateObject())
         {
-            HashSet<string> ids = new(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, string?> ids = new(StringComparer.OrdinalIgnoreCase);
 
             if (group.Value.ValueKind == JsonValueKind.Array)
             {
@@ -138,10 +138,11 @@ public static class NuGetAssetsParser
                     string text = item.GetString() ?? string.Empty;
                     int space = text.IndexOf(' ', StringComparison.Ordinal);
                     string id = (space > 0 ? text[..space] : text).Trim();
+                    string requested = space > 0 ? text[(space + 1)..].Trim() : string.Empty;
 
                     if (id.Length > 0)
                     {
-                        ids.Add(id);
+                        ids[id] = requested.Length is > 0 and <= 200 && !requested.Any(char.IsControl) ? requested : null;
                     }
                 }
             }
@@ -154,7 +155,7 @@ public static class NuGetAssetsParser
 
     private static List<TargetGraph> ReadTargets(
         JsonElement root,
-        Dictionary<string, HashSet<string>> directByFramework,
+        Dictionary<string, Dictionary<string, string?>> directByFramework,
         string displayPath)
     {
         List<TargetGraph> targets = [];
@@ -171,7 +172,7 @@ public static class NuGetAssetsParser
             // framework name); direct dependencies are keyed by the part before the runtime identifier.
             int slash = target.Name.IndexOf('/', StringComparison.Ordinal);
             string framework = slash > 0 ? target.Name[..slash] : target.Name;
-            directByFramework.TryGetValue(framework, out HashSet<string>? direct);
+            directByFramework.TryGetValue(framework, out Dictionary<string, string?>? direct);
 
             List<ResolvedPackage> packages = [];
 
@@ -199,7 +200,7 @@ public static class NuGetAssetsParser
         return targets.OrderBy(t => t.Name, StringComparer.Ordinal).ToList();
     }
 
-    private static ResolvedPackage? ReadPackage(JsonProperty entry, HashSet<string>? direct, string displayPath)
+    private static ResolvedPackage? ReadPackage(JsonProperty entry, Dictionary<string, string?>? direct, string displayPath)
     {
         // Package entries are objects. Anything else (for example bookkeeping values a newer NuGet may add) is not a package.
         if (entry.Value.ValueKind != JsonValueKind.Object)
@@ -247,7 +248,8 @@ public static class NuGetAssetsParser
 
         dependencies = dependencies.OrderBy(d => d.Id, StringComparer.OrdinalIgnoreCase).ToList();
 
-        bool isDirect = direct is not null && direct.Contains(id);
-        return new ResolvedPackage(id, packageVersion, isDirect, dependencies);
+        string? requested = null;
+        bool isDirect = direct is not null && direct.TryGetValue(id, out requested);
+        return new ResolvedPackage(id, packageVersion, isDirect, dependencies, requested);
     }
 }

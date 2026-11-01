@@ -167,7 +167,7 @@ All commands accept `--format table|json|sarif|openvex`, `--config <path>`, and 
 | `deprisk scan [path]` | Parse lockfiles/SBOMs, build the dependency hypergraph, match advisories. |
 | `deprisk match [path]` | Match the resolved dependencies against local OSV advisories: `--advisories <dir\|.zip\|.json>` (required), `--format table\|json`, `--out`, `--strict`. Offline; matching is by version only. |
 | `deprisk rank [path]` | Like `match`, ordered by the baseline method: CISA KEV, then EPSS, then CVSS v3 base score. `--advisories <...>` (required), `--epss <csv[.gz]>`, `--kev <json>`, `--format table\|json`, `--out`, `--strict`. Offline; the reference (B2) for the later model. |
-| `deprisk graph` | Inspect or export the hypergraph (`--export dot\|json`). |
+| `deprisk graph [path]` | The dependency hypergraph of the resolved graph: nodes, hyperedges (one per package version that requires something, plus a project hyperedge), every requirement checked against the resolved version (violated and undecided ones are listed), statistics. `--format table\|json\|dot`, `--out`. Offline. |
 | `deprisk reach` | Run reachability analysis from your entrypoints to vulnerable symbols. |
 | `deprisk rank` | Compute risk distributions and rank findings. |
 | `deprisk plan` | Compute an optimal remediation plan under budget and constraints. |
@@ -577,7 +577,8 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 | Rank | CVSS v4.0 scoring | 🗺️ |
 | Ingest | npm lockfiles | 🗺️ |
 | Ingest | CycloneDX / SPDX SBOM | 🗺️ |
-| Model | Dependency hypergraph | 🗺️ |
+| Model | Dependency hypergraph of the resolved NuGet graph, requirement checks, DOT/JSON export via `deprisk graph` | ✅ |
+| Model | Hypergraph with candidate versions and allowed tuples (for the optimizer) | 🗺️ |
 | Analysis | Reachability: C# | 🗺️ |
 | Analysis | Reachability: JS/TS | 🗺️ |
 | Analysis | Symbol mining from fix commits | 🗺️ |

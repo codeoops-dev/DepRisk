@@ -142,6 +142,13 @@
               }
             }
           }
+        },
+        "requested": {
+          "description": "The constraint the project itself asked for, as written in the assets file (for example '>= 1.2.0'); null for transitive packages or when none was recorded.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     }
