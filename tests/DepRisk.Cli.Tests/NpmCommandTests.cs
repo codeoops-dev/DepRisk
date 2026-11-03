@@ -179,14 +179,58 @@ public sealed class NpmCommandTests : IDisposable
     }
 
     [Fact]
-    public void Graph_says_plainly_that_it_is_not_available_for_npm_yet()
+    public void Graph_reads_npm_and_resolves_nested_copies_the_way_node_does()
     {
         (int code, string output, string error) = Run("graph", _root);
 
-        Assert.Equal((int)ExitCode.InvalidInput, code);
-        Assert.Equal(string.Empty, output);
-        Assert.Contains("supports NuGet projects only", error);
-        Assert.Contains("npm", error);
+        Assert.Equal((int)ExitCode.Success, code);
+        Assert.Equal(string.Empty, error);
+        Assert.Contains("deprisk graph: 1 project(s), ecosystem npm", output);
+        Assert.Contains("npm: 26 node(s) (6 direct), 7 hyperedge(s) (max arity 14), 30 requirement(s): 0 violated, 0 undecided, 4 shared", output);
+
+        (int jsonCode, string json, _) = Run("graph", _root, "--format", "json");
+
+        Assert.Equal((int)ExitCode.Success, jsonCode);
+        using JsonDocument document = JsonDocument.Parse(json);
+        JsonElement target = document.RootElement.GetProperty("projects")[0].GetProperty("targets")[0];
+        JsonElement debug = target.GetProperty("hyperedges").EnumerateArray().Single(e => e.GetProperty("id").GetString() == "node_modules/debug");
+        JsonElement ms = debug.GetProperty("requires")[0];
+
+        Assert.Equal("npm", document.RootElement.GetProperty("ecosystem").GetString());
+        Assert.Equal("node_modules/debug/node_modules/ms", ms.GetProperty("resolvedPath").GetString());   // debug's own ms 2.0.0, not the top-level 2.1.3
+        Assert.Equal("2.0.0", ms.GetProperty("resolved").GetString());
+        Assert.True(ms.GetProperty("satisfied").GetBoolean());
+    }
+
+    [Fact]
+    public void Graph_dot_output_keeps_the_two_copies_of_one_package_apart()
+    {
+        (int code, string dot, _) = Run("graph", _root, "--format", "dot");
+
+        Assert.Equal((int)ExitCode.Success, code);
+        Assert.Contains("\"c0:node_modules/ms\" [label=\"ms 2.1.3\"", dot);
+        Assert.Contains("\"c0:node_modules/debug/node_modules/ms\" [label=\"ms 2.0.0\"", dot);
+        Assert.Contains("\"c0:h:node_modules/debug\" -> \"c0:node_modules/debug/node_modules/ms\" [label=\"2.0.0\"]", dot);
+    }
+
+    [Fact]
+    public void Graph_names_the_installed_instance_when_a_requirement_is_violated()
+    {
+        // host asks for b ^2 but only b 1.x is installed.
+        File.WriteAllText(
+            Path.Combine(_root, "web", "package-lock.json"),
+            """
+            { "name": "demo", "lockfileVersion": 3, "packages": {
+              "": { "dependencies": { "host": "1.0.0" } },
+              "node_modules/host": { "version": "1.0.0", "dependencies": { "b": "^2.0.0" } },
+              "node_modules/b": { "version": "1.9.9" } } }
+            """);
+
+        (int code, string output, _) = Run("graph", _root);
+
+        Assert.Equal((int)ExitCode.Success, code);
+        Assert.Contains("1 violated", output);
+        Assert.Contains("VIOLATED  host@1.0.0 [node_modules/host] requires b ^2.0.0 but the project resolved 1.9.9", output);
     }
 
     [Fact]

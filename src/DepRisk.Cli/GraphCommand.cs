@@ -156,7 +156,7 @@ internal static class GraphCommand
                     foreach (Requirement requirement in edge.Requires.Where(r => r.Satisfied == false).Take(20))
                     {
                         text.Append(
-                            $"    VIOLATED  {TerminalText.Safe(edge.Owner, 100)} requires {TerminalText.Safe(requirement.Package, 80)} "
+                            $"    VIOLATED  {TerminalText.Safe(edge.Owner, 100)}{(edge.Path is null ? string.Empty : " [" + TerminalText.Safe(edge.Path, 120) + "]")} requires {TerminalText.Safe(requirement.Package, 80)} "
                             + $"{TerminalText.Safe(requirement.Range ?? "?", 60)} but the project resolved {TerminalText.Safe(requirement.Resolved ?? "?", 40)}\n");
                     }
                 }

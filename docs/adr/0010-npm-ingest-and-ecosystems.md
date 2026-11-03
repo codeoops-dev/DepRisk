@@ -30,7 +30,7 @@ Until now DepRisk read NuGet only. The README promises NuGet and npm ingest for 
 
 **Renamed field.** `advisories.skippedNotNuGet` becomes `advisories.skippedOtherEcosystem` in findings and ranking results (and `OsvParseStatus.NotNuGet` becomes `OtherEcosystem`), because the count is now relative to the scanned ecosystem. This is a deliberate break of schema v1 before 0.1.0; the published 0.0.1-alpha.2 used the old name.
 
-**`graph` stays NuGet-only** in this slice and says so (exit 4). npm needs path-based resolution and node-semver ranges; that is the next slice.
+**`graph` stays NuGet-only** in this slice and says so (exit 4). npm needs path-based resolution and node-semver ranges; that is the next slice (done in ADR 0011).
 
 ## Known limits (recorded, not hidden)
 

@@ -577,9 +577,8 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 | Rank | Baseline ranking (KEV, EPSS, CVSS v3 base score; no reachability or uncertainty) via `deprisk rank` | ✅ |
 | Rank | CVSS v4.0 scoring | 🗺️ |
 | Ingest | npm lockfiles (`package-lock.json`, lockfileVersion 2 and 3, workspaces, aliases) via `deprisk scan`; `rank` and `ci` work for npm too | ✅ |
-| Model | Dependency hypergraph for npm (path-based resolution, node-semver ranges) | 🗺️ |
 | Ingest | CycloneDX / SPDX SBOM | 🗺️ |
-| Model | Dependency hypergraph of the resolved NuGet graph, requirement checks, DOT/JSON export via `deprisk graph` | ✅ |
+| Model | Dependency hypergraph of the resolved graph (NuGet; npm with Node-style path resolution and node-semver ranges), requirement checks, DOT/JSON export via `deprisk graph` | ✅ |
 | Model | Hypergraph with candidate versions and allowed tuples (for the optimizer) | 🗺️ |
 | Analysis | Reachability: C# | 🗺️ |
 | Analysis | Reachability: JS/TS | 🗺️ |

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/codeoops-dev/deprisk/schemas/graph.v1.schema.json",
   "title": "DepRisk dependency hypergraph (v1)",
-  "description": "Output of 'deprisk graph --format json': the dependency hypergraph of the resolved graph of every project and target (docs/method.md section 1). One node per resolved package; one hyperedge per package version that requires something, plus one project hyperedge for the project's direct dependencies. Every requirement is checked against the resolved version. Deterministic: no timestamps, no absolute paths. Names and ranges come from package data and are untrusted.",
+  "description": "Output of 'deprisk graph --format json': the dependency hypergraph of the resolved graph of every project and target (docs/method.md section 1). One node per installed package (npm: per installed instance); one hyperedge per package version that requires something, plus one project hyperedge for the project's direct dependencies. Every requirement is checked against the resolved version. Deterministic: no timestamps, no absolute paths. Names and ranges come from package data and are untrusted.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -35,7 +35,8 @@
     },
     "ecosystem": {
       "enum": [
-        "nuget"
+        "nuget",
+        "npm"
       ]
     },
     "projects": {
@@ -112,7 +113,8 @@
         "id",
         "version",
         "isDirect",
-        "requested"
+        "requested",
+        "path"
       ],
       "properties": {
         "id": {
@@ -132,6 +134,13 @@
             "string",
             "null"
           ]
+        },
+        "path": {
+          "description": "Identifies the installed instance when a package can be installed several times: for npm the lock file key (for example 'node_modules/a/node_modules/b'); null for NuGet.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },
@@ -145,11 +154,12 @@
         "scope",
         "requires",
         "satisfied",
-        "arity"
+        "arity",
+        "path"
       ],
       "properties": {
         "id": {
-          "description": "'project:<name>' for the project hyperedge, '<package>@<version>' for a package hyperedge. Unique within a target.",
+          "description": "'project:<name>' for the project hyperedge; for a package hyperedge '<package>@<version>' (NuGet) or the installed instance's path (npm). Unique within a target.",
           "type": "string",
           "minLength": 1
         },
@@ -190,6 +200,13 @@
           "description": "The number of packages in scope.",
           "type": "integer",
           "minimum": 1
+        },
+        "path": {
+          "description": "The installed instance that owns a package hyperedge (npm lock file key); null for NuGet and for the project hyperedge.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },
@@ -200,7 +217,8 @@
         "package",
         "range",
         "resolved",
-        "satisfied"
+        "satisfied",
+        "resolvedPath"
       ],
       "properties": {
         "package": {
@@ -208,7 +226,7 @@
           "minLength": 1
         },
         "range": {
-          "description": "The declared version range, as written.",
+          "description": "The declared version range or specifier, as written (NuGet interval notation; npm node-semver range, or an alias such as 'npm:name@^1').",
           "type": [
             "string",
             "null"
@@ -222,9 +240,16 @@
           ]
         },
         "satisfied": {
-          "description": "true or false when decided; null when the package is not resolved or the range is not understood (never guessed).",
+          "description": "true or false when decided; null when the package is not resolved or the range is not understood (npm: dist-tags, URLs, git and file specifiers, workspace:); never guessed.",
           "type": [
             "boolean",
+            "null"
+          ]
+        },
+        "resolvedPath": {
+          "description": "The installed instance the requirement was resolved to (npm: found by Node's lookup, walking up node_modules directories from the requirer); null for NuGet and when nothing resolves.",
+          "type": [
+            "string",
             "null"
           ]
         }

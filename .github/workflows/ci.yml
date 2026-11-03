@@ -167,6 +167,26 @@ jobs:
           print("npm scan, match, and rank match the schemas")
           PY
 
+      # Contract test: the npm hypergraph (path-based resolution) of the same real lock files.
+      - name: npm graph output matches schemas/graph.v1.schema.json
+        if: runner.os == 'Linux'
+        run: |
+          cli="dotnet run --no-build -c Release --project src/DepRisk.Cli --"
+          for name in simple workspaces; do
+            $cli graph "tests/fixtures/npm/$name.package-lock.json" --ecosystem npm --format json --out "npm-graph-$name.json"
+            python3 -m check_jsonschema --schemafile schemas/graph.v1.schema.json "npm-graph-$name.json"
+          done
+          python3 - <<'PY'
+          import json
+          doc = json.load(open("npm-graph-simple.json", encoding="utf-8"))
+          target = doc["projects"][0]["targets"][0]
+          assert doc["ecosystem"] == "npm"
+          assert target["stats"]["violated"] == 0, target["stats"]
+          debug = next(e for e in target["hyperedges"] if e["id"] == "node_modules/debug")
+          assert debug["requires"][0]["resolvedPath"] == "node_modules/debug/node_modules/ms", debug
+          print("npm graph matches the schema; nested resolution OK")
+          PY
+
       # Contract test: SARIF for this repository's own projects must validate against the official SARIF 2.1.0 schema,
       # which is fetched here and pinned by its SHA-256, and the policy gate must behave.
       - name: SARIF output validates against the official schema, and the policy gate works

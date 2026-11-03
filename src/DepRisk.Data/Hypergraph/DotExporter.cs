@@ -38,14 +38,14 @@ public static class DotExporter
                 foreach (HypergraphNode node in target.Nodes)
                 {
                     string style = node.IsDirect ? ", style=filled, fillcolor=\"#e8f0fe\"" : string.Empty;
-                    dot.Append($"    {Quote(prefix + node.Id + "@" + node.Version)} [label={Quote(node.Id + " " + node.Version)}{style}];\n");
+                    dot.Append($"    {Quote(prefix + (node.Path ?? node.Id + "@" + node.Version))} [label={Quote(node.Id + " " + node.Version)}{style}];\n");
                 }
 
                 HashSet<string> ghosts = new(StringComparer.Ordinal);
 
                 foreach (Hyperedge edge in target.Hyperedges)
                 {
-                    string ownerId = edge.Kind == "project" ? prefix + "project:" + edge.Owner : prefix + edge.Owner;
+                    string ownerId = edge.Kind == "project" ? prefix + "project:" + edge.Owner : prefix + (edge.Path ?? edge.Owner);
                     string pointId = prefix + "h:" + edge.Id;
 
                     if (edge.Kind == "project")
@@ -58,7 +58,7 @@ public static class DotExporter
 
                     foreach (Requirement requirement in edge.Requires)
                     {
-                        string targetId = prefix + requirement.Package + "@" + requirement.Resolved;
+                        string targetId = prefix + (requirement.ResolvedPath ?? requirement.Package + "@" + requirement.Resolved);
 
                         if (requirement.Resolved is null)
                         {

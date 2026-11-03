@@ -107,7 +107,7 @@ internal static class CliApp
         output.WriteLine("                  --ecosystem auto|nuget|npm   what to read (default: auto, from the files found)");
         output.WriteLine("                  --format table|json   output format (default: table)");
         output.WriteLine("                  --out <file>          write the result to a file");
-        output.WriteLine("  graph [path]  Dependency hypergraph of the resolved graph; checks every requirement (NuGet for now)");
+        output.WriteLine("  graph [path]  Dependency hypergraph of the resolved graph; checks every requirement (NuGet and npm)");
         output.WriteLine("                  --format table|json|dot  --out <file>  --ecosystem auto|nuget|npm");
         output.WriteLine("  match [path]  Match dependencies against local OSV advisories (offline)");
         output.WriteLine("                  --advisories <dir|.zip|.json>   advisory data (required)");

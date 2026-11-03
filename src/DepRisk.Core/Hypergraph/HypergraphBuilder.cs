@@ -17,12 +17,16 @@ public static class HypergraphBuilder
         ArgumentNullException.ThrowIfNull(scan);
 
         List<ProjectHypergraph> projects = scan.Projects
-            .Select(p => new ProjectHypergraph(p.Name, p.ProjectFile, p.Targets.Select(t => BuildTarget(p.Name, t)).ToList()))
+            .Select(p => new ProjectHypergraph(
+                p.Name,
+                p.ProjectFile,
+                p.Targets.Select(t => scan.Ecosystem == Ecosystem.Npm.Id ? NpmHypergraphBuilder.BuildTarget(p.Name, t) : BuildTarget(p.Name, t)).ToList()))
             .ToList();
 
         return new HypergraphResult(HypergraphResult.CurrentSchemaVersion, scan.Tool, scan.Ecosystem, projects);
     }
 
+    /// <summary>Builds the hypergraph of one NuGet target. For npm see <see cref="NpmHypergraphBuilder"/>; <see cref="Build"/> picks by ecosystem.</summary>
     public static TargetHypergraph BuildTarget(string projectName, TargetGraph target)
     {
         ArgumentNullException.ThrowIfNull(projectName);
@@ -125,11 +129,11 @@ public static class HypergraphBuilder
         return new Requirement(package, range, found.Version, parsed.Contains(version));
     }
 
-    private static HypergraphStats Stats(List<HypergraphNode> nodes, List<Hyperedge> edges)
+    internal static HypergraphStats Stats(List<HypergraphNode> nodes, List<Hyperedge> edges)
     {
         IEnumerable<Requirement> all = edges.SelectMany(e => e.Requires);
         int shared = edges
-            .SelectMany(e => e.Requires.Select(r => r.Package).Distinct(StringComparer.OrdinalIgnoreCase))
+            .SelectMany(e => e.Requires.Select(r => r.ResolvedPath ?? r.Package).Distinct(StringComparer.OrdinalIgnoreCase))
             .GroupBy(p => p, StringComparer.OrdinalIgnoreCase)
             .Count(g => g.Count() >= 2);
 
