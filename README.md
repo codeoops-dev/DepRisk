@@ -76,9 +76,11 @@ DepRisk answers all three, from the terminal, offline if you need it.
 
 ## Quick start
 
+What works today (`0.1.0-alpha.1`, everything offline):
+
 ```bash
-# 1. Install (see Installation for other options)
-dotnet tool install -g DepRisk.Cli
+# 1. Install the .NET tool (pre-release)
+dotnet tool install -g DepRisk.Cli --prerelease
 
 # 2. Inside your project
 cd my-project
@@ -87,22 +89,32 @@ dotnet restore                    # NuGet: scan reads the restore output (obj/pr
 deprisk init                      # optional: start a signed audit log (.deprisk/)
 
 # 3. Analyze
-deprisk scan                      # read the resolved dependency graph (offline); --ecosystem nuget|npm if both are present
-deprisk match --advisories NuGet.zip   # (npm: npm.zip) known vulnerabilities, from OSV data you supply (offline)
+deprisk scan                      # the resolved dependency graph; --ecosystem nuget|npm if both are present
+deprisk graph                     # its hypergraph: every requirement checked against what is installed
+deprisk match --advisories NuGet.zip   # (npm: npm.zip) known vulnerabilities, from OSV data you supply
 deprisk rank --advisories NuGet.zip --epss epss_scores-current.csv.gz --kev known_exploited_vulnerabilities.json   # baseline priority order
-deprisk reach                     # reachability analysis against your source
-deprisk rank                      # risk distribution per finding
+deprisk ci --advisories NuGet.zip --fail-on "kev&fixable,cvss>=9" --format sarif --out deprisk.sarif   # CI gate + code scanning
+deprisk audit verify              # verify the audit log
+```
 
-# 4. Get a provably consistent fix plan within 6 engineer-hours
+Advisory data (OSV dumps), EPSS scores, and the CISA KEV list are files you download on a connected machine and pass in; DepRisk never downloads anything.
+
+Planned (not in any release yet; see [Feature status](#feature-status)):
+
+```bash
+deprisk reach                     # reachability analysis against your source
+deprisk rank                      # risk distribution per finding (uncertainty model)
+
+# Get a provably consistent fix plan within 6 engineer-hours
 deprisk plan --budget 6h --out plan.json
 deprisk verify plan.json          # formally checked by the SPARK kernel
 
-# 5. Preview or apply
+# Preview or apply
 deprisk apply plan.json --dry-run
 deprisk apply plan.json --branch deprisk/fix-2026-10
 ```
 
-Illustrative output (format only; numbers are made up for this example):
+Illustrative output of a planned command (format only; numbers are made up for this example):
 
 ```text
 $ deprisk rank --top 5
@@ -119,20 +131,18 @@ $ deprisk rank --top 5
 
 ## Installation
 
-> **Pre-alpha:** the install options below describe the intended distribution. Each one becomes valid when the corresponding release ships (see [Feature status](#feature-status) and [Roadmap](#roadmap)). Until then, build from source.
-
-DepRisk ships as one CLI plus two companion binaries (reachability analyzer and verification kernel). The installer wires them together.
+> **Pre-alpha:** only Option A (as a pre-release) and Option D work today. Options B and C describe the intended distribution and become valid when they ship (see [Feature status](#feature-status) and [Roadmap](#roadmap)). The reachability analyzer and the verification kernel do not exist yet, so the CLI is currently the only binary.
 
 ### Option A: .NET global tool
 
 ```bash
-dotnet tool install -g DepRisk.Cli
-deprisk doctor        # checks that analyzer + kernel binaries are present
+dotnet tool install -g DepRisk.Cli --prerelease
+deprisk doctor        # checks the installation
 ```
 
-### Option B: prebuilt binaries
+### Option B: prebuilt binaries (planned)
 
-Download the archive for your OS from the Releases page. Archives include checksums and signatures.
+Download the archive for your OS from the Releases page. Archives will include checksums and signatures.
 
 ```bash
 sha256sum -c SHA256SUMS
@@ -140,7 +150,7 @@ tar -xzf deprisk-<version>-linux-x64.tar.gz
 sudo install deprisk /usr/local/bin/
 ```
 
-### Option C: Docker
+### Option C: Docker (planned)
 
 ```bash
 docker run --rm -v "$PWD":/work -w /work ghcr.io/codeoops-dev/deprisk:latest scan
@@ -148,41 +158,43 @@ docker run --rm -v "$PWD":/work -w /work ghcr.io/codeoops-dev/deprisk:latest sca
 
 ### Option D: from source
 
-Requirements: .NET SDK, Rust toolchain, GNAT with GNATprove (only needed to rebuild proofs).
+Requirements today: the .NET 10 SDK. (The Rust toolchain and GNAT/GNATprove will be needed once the reachability analyzer and the SPARK kernel land.)
 
 ```bash
 git clone https://github.com/codeoops-dev/deprisk.git
 cd deprisk
-make build            # builds CLI, Rust analyzer, SPARK kernel
-make test
-make prove            # re-runs the formal proofs (GNATprove)
+dotnet build -c Release
+dotnet test -c Release
+dotnet run --project src/DepRisk.Cli -- scan path/to/your/project
 ```
 
 ## Usage
 
-All commands accept `--format table|json|sarif|openvex`, `--config <path>`, and `--offline`. Exit codes are stable and documented below.
+Commands marked *(planned)* do not exist yet; the table in [Feature status](#feature-status) is the source of truth. Output formats are per command (listed below). Everything that exists today works offline and never makes a network call. Exit codes are stable and documented below.
 
 | Command | Purpose |
 |---|---|
 | `deprisk init [path]` | Create `.deprisk/` with a signing key and start the signed audit log. Never overwrites anything. |
-| `deprisk scan [path]` | Parse lockfiles/SBOMs, build the dependency hypergraph, match advisories. |
-| `deprisk match [path]` | Match the resolved dependencies against local OSV advisories: `--advisories <dir\|.zip\|.json>` (required), `--format table\|json`, `--out`, `--strict`. Offline; matching is by version only. |
-| `deprisk rank [path]` | Like `match`, ordered by the baseline method: CISA KEV, then EPSS, then CVSS v3 base score. `--advisories <...>` (required), `--epss <csv[.gz]>`, `--kev <json>`, `--format table\|json`, `--out`, `--strict`. Offline; the reference (B2) for the later model. |
-| `deprisk graph [path]` | The dependency hypergraph of the resolved graph: nodes, hyperedges (one per package version that requires something, plus a project hyperedge), every requirement checked against the resolved version (violated and undecided ones are listed), statistics. `--format table\|json\|dot`, `--out`. Offline. |
-| `deprisk reach` | Run reachability analysis from your entrypoints to vulnerable symbols. |
-| `deprisk rank` | Compute risk distributions and rank findings. |
-| `deprisk plan` | Compute an optimal remediation plan under budget and constraints. |
-| `deprisk verify <plan>` | Check a plan with the formally verified kernel. |
-| `deprisk apply <plan>` | Apply a verified plan (manifest edits, branch, optional PR). |
-| `deprisk explain <id>` | Explain why a finding ranks where it does (evidence, call path, uncertainty). |
-| `deprisk vex` | Export OpenVEX statements for findings proven or judged unreachable. |
+| `deprisk scan [path]` | Read the resolved dependency graph: NuGet (`project.assets.json`, written by `dotnet restore`) or npm (`package-lock.json`, lockfileVersion 2 and 3). `--ecosystem auto\|nuget\|npm` (default: detect; a tree with both is an error that asks you to choose), `--format table\|json`, `--out`. Offline and deterministic. |
+| `deprisk match [path]` | Match the resolved dependencies against local OSV advisories: `--advisories <dir\|.zip\|.json>` (required), `--ecosystem`, `--format table\|json`, `--out`, `--strict`. Offline; matching is by version only. |
+| `deprisk rank [path]` | Like `match`, ordered by the baseline method: CISA KEV, then EPSS, then CVSS v3 base score. `--advisories <...>` (required), `--epss <csv[.gz]>`, `--kev <json>`, `--ecosystem`, `--format table\|json`, `--out`, `--strict`. Offline; the reference (B2) for the later model. |
+| `deprisk graph [path]` | The dependency hypergraph of the resolved graph: nodes, hyperedges (one per package version that requires something, plus a project hyperedge), every requirement checked against the resolved version (violated and undecided ones are listed), statistics. NuGet and npm (for npm, requirements are resolved the way Node does it and ranges are node-semver). `--ecosystem`, `--format table\|json\|dot`, `--out`. Offline. |
+| `deprisk reach` *(planned)* | Run reachability analysis from your entrypoints to vulnerable symbols. |
+| `deprisk rank` *(planned: risk distributions)* | Compute risk distributions and rank findings. Today `rank` is the baseline ordering described above. |
+| `deprisk plan` *(planned)* | Compute an optimal remediation plan under budget and constraints. |
+| `deprisk verify <plan>` *(planned)* | Check a plan with the formally verified kernel. |
+| `deprisk apply <plan>` *(planned)* | Apply a verified plan (manifest edits, branch, optional PR). |
+| `deprisk explain <id>` *(planned)* | Explain why a finding ranks where it does (evidence, call path, uncertainty). |
+| `deprisk vex` *(planned)* | Export OpenVEX statements for findings proven or judged unreachable. |
 | `deprisk audit verify [path]` | Verify the integrity of the audit log (`--pubkey <file>`, `--head <hash>`). |
-| `deprisk bundle create\|import\|verify` | Build or load signed offline data bundles. |
-| `deprisk bench` | Run the reproducible benchmark suite. |
+| `deprisk bundle create\|import\|verify` *(planned)* | Build or load signed offline data bundles. |
+| `deprisk bench` *(planned)* | Run the reproducible benchmark suite. |
 | `deprisk ci [path]` | One-shot CI mode: like `rank`, plus a policy gate. `--fail-on <expression>` (see below) makes it exit with code 1 when a finding matches; `--format table\|json\|sarif`, `--out`. The verdict is printed on standard error so json and sarif on standard output stay clean. |
-| `deprisk doctor` | Diagnose installation. |
+| `deprisk doctor` | Diagnose the installation. |
 
-### Examples
+### Examples (planned commands)
+
+These show the intended interface of commands that are not released yet.
 
 ```bash
 # Why is this finding ranked first? Shows call path and the distribution behind the score.
@@ -573,10 +585,10 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 |---|---|---|
 | Ingest | NuGet restore graph (`project.assets.json`) via `deprisk scan` | ✅ |
 | Ingest | NuGet lockfiles (`packages.lock.json`) | 🗺️ |
+| Ingest | npm lockfiles (`package-lock.json`, lockfileVersion 2 and 3, workspaces, aliases) via `deprisk scan`; `rank` and `ci` work for npm too | ✅ |
 | Match | Advisory matching: OSV records (dir, .zip, .json), NuGet and npm (SemVer) version ranges, offline, via `deprisk match` | ✅ |
 | Rank | Baseline ranking (KEV, EPSS, CVSS v3 base score; no reachability or uncertainty) via `deprisk rank` | ✅ |
 | Rank | CVSS v4.0 scoring | 🗺️ |
-| Ingest | npm lockfiles (`package-lock.json`, lockfileVersion 2 and 3, workspaces, aliases) via `deprisk scan`; `rank` and `ci` work for npm too | ✅ |
 | Ingest | CycloneDX / SPDX SBOM | 🗺️ |
 | Model | Dependency hypergraph of the resolved graph (NuGet; npm with Node-style path resolution and node-semver ranges), requirement checks, DOT/JSON export via `deprisk graph` | ✅ |
 | Model | Hypergraph with candidate versions and allowed tuples (for the optimizer) | 🗺️ |
@@ -597,15 +609,15 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 | Explain | Deterministic evidence report | 🗺️ |
 | Explain | Optional local-LLM narrative | 🗺️ |
 
-*(Update this table as features land; it is the source of truth for what works today.)*
+*(Update this table as features land; it is the source of truth for what works today. Shipped in `0.1.0-alpha.1`: every row marked ✅.)*
 
 ## Roadmap
 
-- **v0.1** CLI skeleton, NuGet + npm ingest, hypergraph, advisory matching, risk ranking (CVSS+EPSS+KEV baseline), audit log.
+- **v0.1** CLI skeleton, NuGet + npm ingest, hypergraph, advisory matching, risk ranking (CVSS+EPSS+KEV baseline), audit log, `ci` policy gate, SARIF. First pre-release: `0.1.0-alpha.1`.
 - **v0.2** Reachability (C#, JS/TS), uncertainty model, `explain`, OpenVEX export.
 - **v0.3** Optimizer (MILP + CVaR), plan format, `plan`/`apply --dry-run`.
 - **v0.4** SPARK kernel and proofs, `verify`, benchmark harness and first published results.
-- **v0.5** Signed offline bundles, CI mode, SARIF, GitHub Action.
+- **v0.5** Signed offline bundles, GitHub Action (the `ci` command and SARIF output already ship with v0.1).
 - **v1.0** Stable plan/audit formats, documented exit codes and schemas, preprint.
 - **Later** More ecosystems (Cargo, PyPI, Maven, Go), PostgreSQL team mode, transparency-log checkpoints, richer API-diff-based cost model.
 
