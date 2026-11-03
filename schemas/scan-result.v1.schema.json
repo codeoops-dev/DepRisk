@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/codeoops-dev/deprisk/schemas/scan-result.v1.schema.json",
   "title": "DepRisk scan result (v1)",
-  "description": "Output of 'deprisk scan --format json': the resolved dependency graph of every project found. Deterministic: contains no timestamps and no machine-specific absolute paths.",
+  "description": "Output of 'deprisk scan --format json': the resolved dependency graph of every project found (NuGet or npm; one ecosystem per result). Deterministic: contains no timestamps and no machine-specific absolute paths.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -35,7 +35,8 @@
     },
     "ecosystem": {
       "enum": [
-        "nuget"
+        "nuget",
+        "npm"
       ]
     },
     "projects": {
@@ -60,7 +61,7 @@
           "minLength": 1
         },
         "assetsFile": {
-          "description": "Path of the assets file relative to the scanned directory, with forward slashes.",
+          "description": "Path of the file the graph was read from (NuGet project.assets.json, npm package-lock.json) relative to the scanned directory, with forward slashes.",
           "type": "string",
           "minLength": 1
         },
@@ -71,7 +72,7 @@
           }
         },
         "projectFile": {
-          "description": "The project file (for example src/App/App.csproj) relative to the scanned directory, forward slashes, when it can be determined from the assets file's location; otherwise null.",
+          "description": "The project file relative to the scanned directory, forward slashes, when it can be determined: for NuGet (for example src/App/App.csproj) from the assets file's location, for npm the package.json next to the lock file if it exists; otherwise null.",
           "type": [
             "string",
             "null"
@@ -88,7 +89,7 @@
       ],
       "properties": {
         "name": {
-          "description": "Target framework (or, for assets file version 4, the target framework alias), optionally followed by '/' and a runtime identifier, for example 'net10.0' or 'net10.0/win-x64'.",
+          "description": "NuGet: target framework (or, for assets file version 4, the target framework alias), optionally followed by '/' and a runtime identifier, for example 'net10.0' or 'net10.0/win-x64'. npm: always 'npm' (a lock file has one target).",
           "type": "string",
           "minLength": 1
         },
@@ -119,7 +120,7 @@
           "minLength": 1
         },
         "isDirect": {
-          "description": "True if the project references this package itself; false if it is only pulled in by other packages.",
+          "description": "True if the project references this package itself (NuGet: a project reference; npm: the project or one of its workspace members asks for it and it is installed at the top level); false if it is only pulled in by other packages.",
           "type": "boolean"
         },
         "dependencies": {
@@ -137,14 +138,21 @@
                 "minLength": 1
               },
               "range": {
-                "description": "Version range the package declares for this dependency, in NuGet notation.",
+                "description": "Version range the package declares for this dependency, in the ecosystem's notation (NuGet interval notation; npm node-semver range or specifier, as written).",
                 "type": "string"
               }
             }
           }
         },
         "requested": {
-          "description": "The constraint the project itself asked for, as written in the assets file (for example '>= 1.2.0'); null for transitive packages or when none was recorded.",
+          "description": "The constraint the project itself asked for, as written in the assets or lock file (for example '>= 1.2.0' for NuGet or '^4.17.0' for npm); null for transitive packages or when none was recorded.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Identifies the installed instance when the same package id can be installed several times in one project: for npm the key in the lock file's 'packages' map, for example 'node_modules/a/node_modules/b'. Null for NuGet.",
           "type": [
             "string",
             "null"

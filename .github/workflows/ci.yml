@@ -133,6 +133,40 @@ jobs:
           print(len(doc["findings"]), "ranked finding(s); schema OK")
           PY
 
+      # Contract test: a real npm lock file (written by npm, kept in tests/fixtures) goes through scan, match, and rank.
+      - name: npm outputs match the schemas
+        if: runner.os == 'Linux'
+        run: |
+          lock=tests/fixtures/npm/simple.package-lock.json
+          adv="$(mktemp -d)"
+          cat > "$adv/DEPRISK-CI-0002.json" <<'JSON'
+          {
+            "id": "DEPRISK-CI-0002",
+            "summary": "Synthetic advisory used by the CI contract test",
+            "database_specific": { "severity": "LOW" },
+            "affected": [
+              {
+                "package": { "ecosystem": "npm", "name": "ms" },
+                "ranges": [ { "type": "SEMVER", "events": [ { "introduced": "0" }, { "fixed": "2.1.3" } ] } ]
+              }
+            ]
+          }
+          JSON
+          cli="dotnet run --no-build -c Release --project src/DepRisk.Cli --"
+          $cli scan "$lock" --ecosystem npm --format json --out npm-scan.json
+          $cli match "$lock" --ecosystem npm --advisories "$adv" --format json --out npm-findings.json
+          $cli rank "$lock" --ecosystem npm --advisories "$adv" --format json --out npm-ranking.json
+          python3 -m check_jsonschema --schemafile schemas/scan-result.v1.schema.json npm-scan.json
+          python3 -m check_jsonschema --schemafile schemas/findings.v1.schema.json npm-findings.json
+          python3 -m check_jsonschema --schemafile schemas/ranking.v1.schema.json npm-ranking.json
+          python3 - <<'PY'
+          import json
+          findings = json.load(open("npm-findings.json", encoding="utf-8"))
+          assert findings["ecosystem"] == "npm"
+          assert [f["package"]["version"] for f in findings["findings"]] == ["2.0.0"], findings["findings"]
+          print("npm scan, match, and rank match the schemas")
+          PY
+
       # Contract test: SARIF for this repository's own projects must validate against the official SARIF 2.1.0 schema,
       # which is fetched here and pinned by its SHA-256, and the policy gate must behave.
       - name: SARIF output validates against the official schema, and the policy gate works

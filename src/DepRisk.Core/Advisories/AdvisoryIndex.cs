@@ -16,17 +16,22 @@ public sealed class AdvisoryIndex
 {
     private readonly Dictionary<string, List<Entry>> _byPackage = new(StringComparer.OrdinalIgnoreCase);
 
-    private AdvisoryIndex()
-    {
-    }
+    private AdvisoryIndex(Ecosystem ecosystem) => Ecosystem = ecosystem;
+
+    /// <summary>The ecosystem this index answers for: only its entries are indexed, and its version rules apply.</summary>
+    public Ecosystem Ecosystem { get; }
 
     public int AdvisoryCount { get; private set; }
 
-    public static AdvisoryIndex Build(IEnumerable<Advisory> advisories)
+    /// <summary>Builds an index for NuGet (kept for callers that predate multiple ecosystems).</summary>
+    public static AdvisoryIndex Build(IEnumerable<Advisory> advisories) => Build(advisories, Ecosystem.NuGet);
+
+    public static AdvisoryIndex Build(IEnumerable<Advisory> advisories, Ecosystem ecosystem)
     {
         ArgumentNullException.ThrowIfNull(advisories);
+        ArgumentNullException.ThrowIfNull(ecosystem);
 
-        AdvisoryIndex index = new();
+        AdvisoryIndex index = new(ecosystem);
 
         foreach (Advisory advisory in advisories)
         {
@@ -39,7 +44,7 @@ public sealed class AdvisoryIndex
 
             foreach (AffectedPackage affected in advisory.Affected)
             {
-                if (!string.Equals(affected.Ecosystem, "NuGet", StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(affected.Ecosystem, ecosystem.OsvName, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -50,7 +55,7 @@ public sealed class AdvisoryIndex
                     index._byPackage[affected.Name] = entries;
                 }
 
-                entries.Add(new Entry(advisory, Compile(affected)));
+                entries.Add(new Entry(advisory, Compile(affected, ecosystem)));
                 any = true;
             }
 
@@ -101,7 +106,7 @@ public sealed class AdvisoryIndex
             .ToList();
     }
 
-    private static CompiledPackage Compile(AffectedPackage affected)
+    private static CompiledPackage Compile(AffectedPackage affected, Ecosystem ecosystem)
     {
         List<CompiledRange> ranges = [];
 
@@ -117,7 +122,7 @@ public sealed class AdvisoryIndex
 
             foreach (RangeEvent rangeEvent in range.Events)
             {
-                CompiledEvent? compiled = CompiledEvent.TryCreate(rangeEvent);
+                CompiledEvent? compiled = CompiledEvent.TryCreate(rangeEvent, ecosystem);
 
                 if (compiled is not null)
                 {
@@ -133,7 +138,7 @@ public sealed class AdvisoryIndex
             ranges.Add(new CompiledRange(events));
         }
 
-        return new CompiledPackage(ranges, affected.Versions);
+        return new CompiledPackage(ranges, affected.Versions, ecosystem);
     }
 
     private sealed record Entry(Advisory Advisory, CompiledPackage Package);
@@ -142,11 +147,13 @@ public sealed class AdvisoryIndex
     {
         private readonly List<CompiledRange> _ranges;
         private readonly IReadOnlyList<string> _versions;
+        private readonly Ecosystem _ecosystem;
 
-        public CompiledPackage(List<CompiledRange> ranges, IReadOnlyList<string> versions)
+        public CompiledPackage(List<CompiledRange> ranges, IReadOnlyList<string> versions, Ecosystem ecosystem)
         {
             _ranges = ranges;
             _versions = versions;
+            _ecosystem = ecosystem;
         }
 
         public bool IsAffected(NuGetVersion version, out List<NuGetVersion> fixedVersions)
@@ -163,7 +170,7 @@ public sealed class AdvisoryIndex
                 }
             }
 
-            if (!affected && _versions.Any(v => ListedVersionEquals(v, version)))
+            if (!affected && _versions.Any(v => ListedVersionEquals(v, version, _ecosystem)))
             {
                 affected = true;
             }
@@ -171,8 +178,8 @@ public sealed class AdvisoryIndex
             return affected;
         }
 
-        private static bool ListedVersionEquals(string listed, NuGetVersion version) =>
-            NuGetVersion.TryParse(listed, out NuGetVersion? parsed) && parsed is not null
+        private static bool ListedVersionEquals(string listed, NuGetVersion version, Ecosystem ecosystem) =>
+            ecosystem.TryParseVersion(listed, out NuGetVersion? parsed) && parsed is not null
                 ? parsed.Equals(version)
                 : string.Equals(listed, version.ToString(), StringComparison.OrdinalIgnoreCase);
     }
@@ -242,7 +249,7 @@ public sealed class AdvisoryIndex
 
         public bool IsBeginning { get; }
 
-        public static CompiledEvent? TryCreate(RangeEvent rangeEvent)
+        public static CompiledEvent? TryCreate(RangeEvent rangeEvent, Ecosystem ecosystem)
         {
             string kind = rangeEvent.Kind;
 
@@ -256,7 +263,7 @@ public sealed class AdvisoryIndex
                 return new CompiledEvent(kind, null, isBeginning: true);
             }
 
-            return NuGetVersion.TryParse(rangeEvent.Version, out NuGetVersion? parsed) && parsed is not null
+            return ecosystem.TryParseVersion(rangeEvent.Version, out NuGetVersion? parsed) && parsed is not null
                 ? new CompiledEvent(kind, parsed, isBeginning: false)
                 : null;
         }

@@ -11,7 +11,7 @@ using DepRisk.Data.Sarif;
 namespace DepRisk.Cli;
 
 /// <summary>
-/// <c>deprisk rank [path] --advisories &lt;...&gt; [--epss file] [--kev file] [--format table|json|sarif] [--out file] [--strict]</c>:
+/// <c>deprisk rank [path] [--ecosystem auto|nuget|npm] --advisories &lt;...&gt; [--epss file] [--kev file] [--format table|json|sarif] [--out file] [--strict]</c>:
 /// like <c>match</c>, then orders the findings with the baseline ranking (CISA KEV, then EPSS, then CVSS base score).
 /// Offline: EPSS and KEV are local files you supply. This is the reference baseline; it considers neither
 /// reachability nor uncertainty yet.
@@ -32,6 +32,7 @@ internal static class RankCommand
         string? epss = null;
         string? kev = null;
         string format = "table";
+        Ecosystem? ecosystem = null;
         string? outFile = null;
         bool strict = false;
         bool pathSet = false;
@@ -92,6 +93,14 @@ internal static class RankCommand
             {
                 failOn = arg["--fail-on=".Length..];
             }
+            else if (arg == EcosystemOption.Name)
+            {
+                ecosystem = EcosystemOption.Parse(ReadValue(args, ref i, arg), commandName);
+            }
+            else if (arg.StartsWith(EcosystemOption.Name + "=", StringComparison.Ordinal))
+            {
+                ecosystem = EcosystemOption.Parse(arg[(EcosystemOption.Name.Length + 1)..], commandName);
+            }
             else if (arg.StartsWith('-'))
             {
                 throw new InvalidInputException($"unknown option '{arg}' for '{commandName}'.");
@@ -137,7 +146,8 @@ internal static class RankCommand
             epss is null ? null : Path.GetFullPath(epss, context.WorkingDirectory),
             kev is null ? null : Path.GetFullPath(kev, context.WorkingDirectory),
             new ToolInfo(ProductInfo.CommandName, VersionInfo.Current),
-            strict);
+            strict,
+            ecosystem);
 
         string json = RankingResultJson.Serialize(outcome.Result);
         string text = format switch
@@ -240,7 +250,7 @@ internal static class RankCommand
         StringBuilder text = new();
 
         text.Append($"deprisk rank: {result.ProjectsScanned} project(s), {result.PackagesScanned} package version(s) scanned\n");
-        text.Append($"advisories: {TerminalText.Safe(source.Source, 80)}  {source.Count} NuGet advisories, sha256 {source.Digest[..12]}\n");
+        text.Append($"advisories: {TerminalText.Safe(source.Source, 80)}  {source.Count} {Ecosystem.FromId(result.Ecosystem).DisplayName} advisories, sha256 {source.Digest[..12]}\n");
         text.Append(DescribeSignal("EPSS", result.Signals.Epss, "model", "score date", "CVEs"));
         text.Append(DescribeSignal("KEV", result.Signals.Kev, "catalog", "released", "entries"));
         text.Append("method: baseline: in CISA KEV first, then EPSS probability, then CVSS base score, then database severity, then id.\n");

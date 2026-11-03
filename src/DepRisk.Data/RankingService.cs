@@ -18,13 +18,14 @@ public static class RankingService
         string? epssPath,
         string? kevPath,
         ToolInfo tool,
-        bool strict)
+        bool strict,
+        Ecosystem? ecosystem = null)
     {
         ArgumentNullException.ThrowIfNull(scanPath);
         ArgumentNullException.ThrowIfNull(advisoriesPath);
         ArgumentNullException.ThrowIfNull(tool);
 
-        FindingsOutcome findings = FindingsService.Match(scanPath, advisoriesPath, tool, strict);
+        FindingsOutcome findings = FindingsService.Match(scanPath, advisoriesPath, tool, strict, ecosystem);
         EpssData? epss = epssPath is null ? null : EpssLoader.Load(epssPath);
         KevData? kev = kevPath is null ? null : KevLoader.Load(kevPath);
 

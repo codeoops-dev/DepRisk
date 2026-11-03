@@ -11,6 +11,6 @@ public sealed record AdvisorySnapshot(
     string Source,
     string Digest,
     int SkippedWithdrawn,
-    int SkippedNotNuGet,
+    int SkippedOtherEcosystem,
     int SkippedInvalid,
     IReadOnlyList<string> InvalidSamples);

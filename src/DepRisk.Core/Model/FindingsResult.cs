@@ -2,13 +2,16 @@ using DepRisk.Core.Advisories;
 
 namespace DepRisk.Core.Model;
 
-/// <summary>Where the advisory data came from, without any machine-specific path.</summary>
+/// <summary>
+/// Where the advisory data came from, without any machine-specific path. <c>SkippedOtherEcosystem</c> counts valid records
+/// that have no entry for the scanned ecosystem (other ecosystems, or vendor ecosystems such as "Echo:NuGet").
+/// </summary>
 public sealed record AdvisorySourceInfo(
     string Source,
     string Digest,
     int Count,
     int SkippedWithdrawn,
-    int SkippedNotNuGet,
+    int SkippedOtherEcosystem,
     int SkippedInvalid);
 
 public sealed record FindingPackage(string Id, string Version);

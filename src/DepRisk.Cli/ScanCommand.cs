@@ -7,8 +7,8 @@ using DepRisk.Data;
 namespace DepRisk.Cli;
 
 /// <summary>
-/// <c>deprisk scan [path] [--format table|json] [--out file]</c>:
-/// reads the restored dependency graph (project.assets.json) of every project under <c>path</c>.
+/// <c>deprisk scan [path] [--ecosystem auto|nuget|npm] [--format table|json] [--out file]</c>:
+/// reads the restored dependency graph of every project under <c>path</c>: NuGet <c>project.assets.json</c> or npm <c>package-lock.json</c>.
 /// Static, offline, read-only (apart from the optional output file and, in an initialized project, the audit log).
 /// </summary>
 internal static class ScanCommand
@@ -19,6 +19,7 @@ internal static class ScanCommand
     {
         string path = ".";
         string format = "table";
+        Ecosystem? ecosystem = null;
         string? outFile = null;
         bool pathSet = false;
 
@@ -42,6 +43,14 @@ internal static class ScanCommand
             {
                 outFile = arg["--out=".Length..];
             }
+            else if (arg == EcosystemOption.Name)
+            {
+                ecosystem = EcosystemOption.Parse(ReadValue(args, ref i, arg), "scan");
+            }
+            else if (arg.StartsWith(EcosystemOption.Name + "=", StringComparison.Ordinal))
+            {
+                ecosystem = EcosystemOption.Parse(arg[(EcosystemOption.Name.Length + 1)..], "scan");
+            }
             else if (arg.StartsWith('-'))
             {
                 throw new InvalidInputException($"unknown option '{arg}' for 'scan'.");
@@ -64,7 +73,7 @@ internal static class ScanCommand
         }
 
         string scanPath = Path.GetFullPath(path, context.WorkingDirectory);
-        ScanOutcome outcome = ScanService.ScanDetailed(scanPath, new ToolInfo(ProductInfo.CommandName, VersionInfo.Current));
+        ScanOutcome outcome = ScanService.ScanDetailed(scanPath, new ToolInfo(ProductInfo.CommandName, VersionInfo.Current), ecosystem);
 
         // The audited output is always the canonical JSON, so the digest does not depend on the chosen format.
         string json = ScanResultJson.Serialize(outcome.Result);

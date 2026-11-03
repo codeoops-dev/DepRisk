@@ -8,7 +8,7 @@ using DepRisk.Data.Hypergraph;
 namespace DepRisk.Cli;
 
 /// <summary>
-/// <c>deprisk graph [path] [--format table|json|dot] [--out file]</c>: the dependency hypergraph of the resolved graph,
+/// <c>deprisk graph [path] [--ecosystem auto|nuget|npm] [--format table|json|dot] [--out file]</c>: the dependency hypergraph of the resolved graph,
 /// with every requirement checked against the resolved versions (violated and undecided requirements are listed).
 /// Static, offline, read-only (apart from the optional output file and, in an initialized project, the audit log).
 /// </summary>
@@ -20,6 +20,7 @@ internal static class GraphCommand
     {
         string path = ".";
         string format = "table";
+        Ecosystem? ecosystem = null;
         string? outFile = null;
         bool pathSet = false;
 
@@ -42,6 +43,14 @@ internal static class GraphCommand
             else if (arg.StartsWith("--out=", StringComparison.Ordinal))
             {
                 outFile = arg["--out=".Length..];
+            }
+            else if (arg == EcosystemOption.Name)
+            {
+                ecosystem = EcosystemOption.Parse(ReadValue(args, ref i, arg), "graph");
+            }
+            else if (arg.StartsWith(EcosystemOption.Name + "=", StringComparison.Ordinal))
+            {
+                ecosystem = EcosystemOption.Parse(arg[(EcosystemOption.Name.Length + 1)..], "graph");
             }
             else if (arg.StartsWith('-'))
             {
@@ -66,7 +75,8 @@ internal static class GraphCommand
 
         HypergraphOutcome outcome = HypergraphService.Build(
             Path.GetFullPath(path, context.WorkingDirectory),
-            new ToolInfo(ProductInfo.CommandName, VersionInfo.Current));
+            new ToolInfo(ProductInfo.CommandName, VersionInfo.Current),
+            ecosystem);
 
         string json = HypergraphResultJson.Serialize(outcome.Result);
 

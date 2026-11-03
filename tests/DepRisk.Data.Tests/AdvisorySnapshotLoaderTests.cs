@@ -66,7 +66,7 @@ public sealed class AdvisorySnapshotLoaderTests : IDisposable
 
         Assert.Equal(new[] { "GHSA-a", "GHSA-b", "GHSA-c" }, snapshot.Advisories.Select(a => a.Id).ToArray());
         Assert.Equal(1, snapshot.SkippedWithdrawn);
-        Assert.Equal(1, snapshot.SkippedNotNuGet);
+        Assert.Equal(1, snapshot.SkippedOtherEcosystem);
         Assert.Equal(1, snapshot.SkippedInvalid);
         Assert.Equal("mixed", snapshot.Source);
         Assert.True(Digest.IsSha256Hex(snapshot.Digest));

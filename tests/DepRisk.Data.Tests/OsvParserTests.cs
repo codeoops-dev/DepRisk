@@ -76,13 +76,13 @@ public class OsvParserTests
             { "id": "O-1", "affected": [ { "package": { "ecosystem": "{{ecosystem}}", "name": "x" }, "ranges": [ { "type": "ECOSYSTEM", "events": [ { "introduced": "0" } ] } ] } ] }
             """);
 
-        Assert.Equal(OsvParseStatus.NotNuGet, result.Status);
+        Assert.Equal(OsvParseStatus.OtherEcosystem, result.Status);
     }
 
     [Fact]
     public void A_record_without_any_affected_entries_is_not_nuget()
     {
-        Assert.Equal(OsvParseStatus.NotNuGet, Parse("""{ "id": "N-1" }""").Status);
+        Assert.Equal(OsvParseStatus.OtherEcosystem, Parse("""{ "id": "N-1" }""").Status);
     }
 
     [Fact]

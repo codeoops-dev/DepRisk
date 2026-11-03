@@ -39,7 +39,8 @@
     },
     "ecosystem": {
       "enum": [
-        "nuget"
+        "nuget",
+        "npm"
       ]
     },
     "advisories": {
@@ -51,7 +52,7 @@
         "digest",
         "count",
         "skippedWithdrawn",
-        "skippedNotNuGet",
+        "skippedOtherEcosystem",
         "skippedInvalid"
       ],
       "properties": {
@@ -66,7 +67,7 @@
           "pattern": "^[0-9a-f]{64}$"
         },
         "count": {
-          "description": "Advisories with at least one NuGet entry that were used.",
+          "description": "Advisories with at least one entry for the scanned ecosystem that were used.",
           "type": "integer",
           "minimum": 0
         },
@@ -74,7 +75,8 @@
           "type": "integer",
           "minimum": 0
         },
-        "skippedNotNuGet": {
+        "skippedOtherEcosystem": {
+          "description": "Valid records that have no entry for the scanned ecosystem (other ecosystems, or vendor ecosystems such as 'Echo:NuGet').",
           "type": "integer",
           "minimum": 0
         },
@@ -95,7 +97,7 @@
       "minimum": 0
     },
     "packagesSkipped": {
-      "description": "Distinct package versions that could not be parsed as NuGet versions and were therefore not checked.",
+      "description": "Distinct package versions that could not be parsed as versions of the scanned ecosystem and were therefore not checked.",
       "type": "integer",
       "minimum": 0
     },
@@ -178,7 +180,7 @@
               "minLength": 1
             },
             "version": {
-              "description": "Normalized NuGet version of the installed package.",
+              "description": "Normalized version of the installed package (NuGet: three numeric parts, four if the revision is not zero; npm: SemVer without build metadata).",
               "type": "string",
               "minLength": 1
             }

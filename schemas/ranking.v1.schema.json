@@ -42,7 +42,8 @@
     },
     "ecosystem": {
       "enum": [
-        "nuget"
+        "nuget",
+        "npm"
       ]
     },
     "method": {
@@ -73,7 +74,7 @@
         "digest",
         "count",
         "skippedWithdrawn",
-        "skippedNotNuGet",
+        "skippedOtherEcosystem",
         "skippedInvalid"
       ],
       "properties": {
@@ -93,7 +94,7 @@
           "type": "integer",
           "minimum": 0
         },
-        "skippedNotNuGet": {
+        "skippedOtherEcosystem": {
           "type": "integer",
           "minimum": 0
         },

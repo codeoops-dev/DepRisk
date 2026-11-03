@@ -1,20 +1,20 @@
 using System.Text.Json;
+using DepRisk.Core;
 using DepRisk.Core.Advisories;
-using DepRisk.Core.Versioning;
 
 namespace DepRisk.Data.Osv;
 
 /// <summary>What happened when one OSV record was read.</summary>
 public enum OsvParseStatus
 {
-    /// <summary>A usable advisory with at least one NuGet entry.</summary>
+    /// <summary>A usable advisory with at least one entry for the requested ecosystem.</summary>
     Ok,
 
     /// <summary>The record was withdrawn by its publisher.</summary>
     Withdrawn,
 
-    /// <summary>Valid, but it has no entry for the NuGet ecosystem (other ecosystems, or vendor ecosystems such as "Echo:NuGet").</summary>
-    NotNuGet,
+    /// <summary>Valid, but it has no entry for the requested ecosystem (other ecosystems, or vendor ecosystems such as "Echo:NuGet").</summary>
+    OtherEcosystem,
 
     /// <summary>Malformed. Skipping it could hide a vulnerability, so callers must count and report it.</summary>
     Invalid,
@@ -23,7 +23,7 @@ public enum OsvParseStatus
 public sealed record OsvParseResult(OsvParseStatus Status, Advisory? Advisory, string? Error);
 
 /// <summary>
-/// Reads one OSV record (https://ossf.github.io/osv-schema/). Tolerant of fields it does not use, strict about the
+/// Reads one OSV record (https://ossf.github.io/osv-schema/) for one ecosystem. Tolerant of fields it does not use, strict about the
 /// fields it relies on. Input is untrusted: depth is bounded and text fields are truncated.
 /// </summary>
 public static class OsvParser
@@ -33,8 +33,13 @@ public static class OsvParser
 
     private static readonly JsonDocumentOptions Options = new() { MaxDepth = 32 };
 
-    public static OsvParseResult Parse(ReadOnlySpan<byte> utf8Json)
+    /// <summary>Reads a record for NuGet (kept for callers that predate multiple ecosystems).</summary>
+    public static OsvParseResult Parse(ReadOnlySpan<byte> utf8Json) => Parse(utf8Json, Ecosystem.NuGet);
+
+    public static OsvParseResult Parse(ReadOnlySpan<byte> utf8Json, Ecosystem ecosystem)
     {
+        ArgumentNullException.ThrowIfNull(ecosystem);
+
         JsonDocument document;
 
         try
@@ -48,11 +53,11 @@ public static class OsvParser
 
         using (document)
         {
-            return Read(document.RootElement);
+            return Read(document.RootElement, ecosystem);
         }
     }
 
-    private static OsvParseResult Read(JsonElement root)
+    private static OsvParseResult Read(JsonElement root, Ecosystem ecosystem)
     {
         if (root.ValueKind != JsonValueKind.Object)
         {
@@ -108,7 +113,7 @@ public static class OsvParser
         {
             foreach (JsonElement entry in affectedElement.EnumerateArray())
             {
-                (AffectedPackage? package, string? error) = ReadAffected(entry);
+                (AffectedPackage? package, string? error) = ReadAffected(entry, ecosystem);
 
                 if (error is not null)
                 {
@@ -130,12 +135,12 @@ public static class OsvParser
         }
 
         return affected.Count == 0
-            ? new OsvParseResult(OsvParseStatus.NotNuGet, advisory, null)
+            ? new OsvParseResult(OsvParseStatus.OtherEcosystem, advisory, null)
             : new OsvParseResult(OsvParseStatus.Ok, advisory, null);
     }
 
-    /// <returns>(package, null) for a NuGet entry; (null, null) for an entry of another ecosystem; (null, error) if malformed.</returns>
-    private static (AffectedPackage? Package, string? Error) ReadAffected(JsonElement entry)
+    /// <returns>(package, null) for an entry of the requested ecosystem; (null, null) for an entry of another one; (null, error) if malformed.</returns>
+    private static (AffectedPackage? Package, string? Error) ReadAffected(JsonElement entry, Ecosystem requested)
     {
         if (entry.ValueKind != JsonValueKind.Object)
         {
@@ -152,8 +157,9 @@ public static class OsvParser
             return (null, null);
         }
 
-        // Exactly "NuGet". Vendor ecosystems such as "Echo:NuGet" use their own version schemes and must not be mixed in.
-        if (!string.Equals(ecosystem, "NuGet", StringComparison.OrdinalIgnoreCase))
+        // Exactly the requested name ("NuGet", "npm"). Vendor ecosystems such as "Echo:NuGet" use their own version schemes
+        // and must not be mixed in.
+        if (!string.Equals(ecosystem, requested.OsvName, StringComparison.OrdinalIgnoreCase))
         {
             return (null, null);
         }
@@ -164,7 +170,7 @@ public static class OsvParser
         {
             foreach (JsonElement range in rangesElement.EnumerateArray())
             {
-                (AffectedRange? parsed, string? error) = ReadRange(range, name);
+                (AffectedRange? parsed, string? error) = ReadRange(range, name, requested);
 
                 if (error is not null)
                 {
@@ -179,10 +185,10 @@ public static class OsvParser
         }
 
         List<string> versions = ReadStringArray(entry, "versions");
-        return (new AffectedPackage("NuGet", name, ranges, versions), null);
+        return (new AffectedPackage(requested.OsvName, name, ranges, versions), null);
     }
 
-    private static (AffectedRange? Range, string? Error) ReadRange(JsonElement range, string packageName)
+    private static (AffectedRange? Range, string? Error) ReadRange(JsonElement range, string packageName, Ecosystem requested)
     {
         if (range.ValueKind != JsonValueKind.Object || !TryGetString(range, "type", out string? type) || string.IsNullOrEmpty(type))
         {
@@ -214,9 +220,9 @@ public static class OsvParser
                     if (evaluated
                         && (property.Name is "introduced" or "fixed" or "last_affected")
                         && !(property.Name == "introduced" && value == "0")
-                        && !NuGetVersion.TryParse(value, out _))
+                        && !requested.TryParseVersion(value, out _))
                     {
-                        return (null, $"'{packageName}' has the version '{value}' in a range, which is not a valid NuGet version");
+                        return (null, $"'{packageName}' has the version '{value}' in a range, which is not a valid {requested.DisplayName} version");
                     }
 
                     events.Add(new RangeEvent(property.Name, value));

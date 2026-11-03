@@ -12,14 +12,17 @@ public sealed record FindingsOutcome(FindingsResult Result, string InputsDigest,
 /// <summary>Scans a path for the restored dependency graph and matches every package against local OSV advisories.</summary>
 public static class FindingsService
 {
-    public static FindingsOutcome Match(string scanPath, string advisoriesPath, ToolInfo tool, bool strict)
+    /// <param name="ecosystem">The ecosystem to scan; null detects it from the files found (see <see cref="ScanService"/>).</param>
+    public static FindingsOutcome Match(string scanPath, string advisoriesPath, ToolInfo tool, bool strict, Ecosystem? ecosystem = null)
     {
         ArgumentNullException.ThrowIfNull(scanPath);
         ArgumentNullException.ThrowIfNull(advisoriesPath);
         ArgumentNullException.ThrowIfNull(tool);
 
-        ScanOutcome scan = ScanService.ScanDetailed(scanPath, tool);
-        AdvisorySnapshot snapshot = AdvisorySnapshotLoader.Load(advisoriesPath);
+        ScanOutcome scan = ScanService.ScanDetailed(scanPath, tool, ecosystem);
+
+        // The advisory data is read for the ecosystem that was actually found, so only its entries are loaded.
+        AdvisorySnapshot snapshot = AdvisorySnapshotLoader.Load(advisoriesPath, Ecosystem.FromId(scan.Result.Ecosystem));
 
         if (strict && snapshot.SkippedInvalid > 0)
         {
@@ -35,7 +38,8 @@ public static class FindingsService
     /// <summary>Pure matching of an already-built scan result against a snapshot.</summary>
     public static FindingsResult Compute(ScanResult scan, AdvisorySnapshot snapshot, ToolInfo tool)
     {
-        AdvisoryIndex index = AdvisoryIndex.Build(snapshot.Advisories);
+        Ecosystem ecosystem = Ecosystem.FromId(scan.Ecosystem);
+        AdvisoryIndex index = AdvisoryIndex.Build(snapshot.Advisories, ecosystem);
 
         Dictionary<string, Accumulator> findings = new(StringComparer.Ordinal);
         HashSet<string> scanned = new(StringComparer.OrdinalIgnoreCase);
@@ -47,7 +51,7 @@ public static class FindingsService
             {
                 foreach (ResolvedPackage package in target.Packages)
                 {
-                    if (!NuGetVersion.TryParse(package.Version, out NuGetVersion? version) || version is null)
+                    if (!ecosystem.TryParseVersion(package.Version, out NuGetVersion? version) || version is null)
                     {
                         skipped.Add($"{package.Id}@{package.Version}");
                         continue;
@@ -84,13 +88,13 @@ public static class FindingsService
             snapshot.Digest,
             snapshot.Advisories.Count,
             snapshot.SkippedWithdrawn,
-            snapshot.SkippedNotNuGet,
+            snapshot.SkippedOtherEcosystem,
             snapshot.SkippedInvalid);
 
         return new FindingsResult(
             FindingsResult.CurrentSchemaVersion,
             tool,
-            "nuget",
+            ecosystem.Id,
             source,
             scan.Projects.Count,
             scanned.Count,
@@ -123,7 +127,8 @@ public static class FindingsService
                 new FindingPackage(_packageId, _version),
                 _match.FixedVersions.Select(v => v.ToString()).ToList(),
                 Locations
-                    .Distinct()
+                    .GroupBy(l => (l.Project, l.Target, l.ProjectFile))
+                    .Select(g => new FindingLocation(g.Key.Project, g.Key.Target, g.Any(l => l.IsDirect), g.Key.ProjectFile))
                     .OrderBy(l => l.Project, StringComparer.Ordinal)
                     .ThenBy(l => l.Target, StringComparer.Ordinal)
                     .ToList());

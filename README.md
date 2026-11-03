@@ -82,12 +82,13 @@ dotnet tool install -g DepRisk.Cli
 
 # 2. Inside your project
 cd my-project
-dotnet restore                    # scan reads the restore output (obj/project.assets.json)
+dotnet restore                    # NuGet: scan reads the restore output (obj/project.assets.json)
+                                  # npm: scan reads package-lock.json (npm install --package-lock-only is enough)
 deprisk init                      # optional: start a signed audit log (.deprisk/)
 
 # 3. Analyze
-deprisk scan                      # read the resolved dependency graph (offline)
-deprisk match --advisories NuGet.zip   # known vulnerabilities, from OSV data you supply (offline)
+deprisk scan                      # read the resolved dependency graph (offline); --ecosystem nuget|npm if both are present
+deprisk match --advisories NuGet.zip   # (npm: npm.zip) known vulnerabilities, from OSV data you supply (offline)
 deprisk rank --advisories NuGet.zip --epss epss_scores-current.csv.gz --kev known_exploited_vulnerabilities.json   # baseline priority order
 deprisk reach                     # reachability analysis against your source
 deprisk rank                      # risk distribution per finding
@@ -572,10 +573,11 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 |---|---|---|
 | Ingest | NuGet restore graph (`project.assets.json`) via `deprisk scan` | ✅ |
 | Ingest | NuGet lockfiles (`packages.lock.json`) | 🗺️ |
-| Match | Advisory matching: OSV records (dir, .zip, .json), NuGet version ranges, offline, via `deprisk match` | ✅ |
+| Match | Advisory matching: OSV records (dir, .zip, .json), NuGet and npm (SemVer) version ranges, offline, via `deprisk match` | ✅ |
 | Rank | Baseline ranking (KEV, EPSS, CVSS v3 base score; no reachability or uncertainty) via `deprisk rank` | ✅ |
 | Rank | CVSS v4.0 scoring | 🗺️ |
-| Ingest | npm lockfiles | 🗺️ |
+| Ingest | npm lockfiles (`package-lock.json`, lockfileVersion 2 and 3, workspaces, aliases) via `deprisk scan`; `rank` and `ci` work for npm too | ✅ |
+| Model | Dependency hypergraph for npm (path-based resolution, node-semver ranges) | 🗺️ |
 | Ingest | CycloneDX / SPDX SBOM | 🗺️ |
 | Model | Dependency hypergraph of the resolved NuGet graph, requirement checks, DOT/JSON export via `deprisk graph` | ✅ |
 | Model | Hypergraph with candidate versions and allowed tuples (for the optimizer) | 🗺️ |

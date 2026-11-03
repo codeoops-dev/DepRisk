@@ -17,7 +17,7 @@ public sealed record AffectedPackage(
     IReadOnlyList<string> Versions);
 
 /// <summary>
-/// The parts of an OSV advisory that DepRisk uses. Only entries for the NuGet ecosystem are kept.
+/// The parts of an OSV advisory that DepRisk uses. Only entries for the ecosystem the advisory was loaded for are kept.
 /// </summary>
 public sealed record Advisory(
     string Id,

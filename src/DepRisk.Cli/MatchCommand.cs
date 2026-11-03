@@ -7,7 +7,7 @@ using DepRisk.Data;
 namespace DepRisk.Cli;
 
 /// <summary>
-/// <c>deprisk match [path] --advisories &lt;dir|.zip|.json&gt; [--format table|json] [--out file] [--strict]</c>:
+/// <c>deprisk match [path] [--ecosystem auto|nuget|npm] --advisories &lt;dir|.zip|.json&gt; [--format table|json] [--out file] [--strict]</c>:
 /// scans the restored dependency graph and reports which package versions are affected by known advisories.
 /// Offline: the advisory data is a local file you supply. Matching is by version only; reachability is not considered yet.
 /// </summary>
@@ -20,6 +20,7 @@ internal static class MatchCommand
         string path = ".";
         string? advisories = null;
         string format = "table";
+        Ecosystem? ecosystem = null;
         string? outFile = null;
         bool strict = false;
         bool pathSet = false;
@@ -56,6 +57,14 @@ internal static class MatchCommand
             {
                 strict = true;
             }
+            else if (arg == EcosystemOption.Name)
+            {
+                ecosystem = EcosystemOption.Parse(ReadValue(args, ref i, arg), "match");
+            }
+            else if (arg.StartsWith(EcosystemOption.Name + "=", StringComparison.Ordinal))
+            {
+                ecosystem = EcosystemOption.Parse(arg[(EcosystemOption.Name.Length + 1)..], "match");
+            }
             else if (arg.StartsWith('-'))
             {
                 throw new InvalidInputException($"unknown option '{arg}' for 'match'.");
@@ -81,7 +90,8 @@ internal static class MatchCommand
         {
             throw new InvalidInputException(
                 "'match' needs advisory data: pass --advisories <directory | .zip | .json> (OSV format). "
-                + "On a connected machine you can download OSV's NuGet dump (https://osv-vulnerabilities.storage.googleapis.com/NuGet/all.zip) "
+                + "On a connected machine you can download OSV's dump for your ecosystem "
+                + "(https://osv-vulnerabilities.storage.googleapis.com/NuGet/all.zip or .../npm/all.zip) "
                 + "and copy it over; see docs/adr/0006-advisory-data-and-matching.md.");
         }
 
@@ -92,7 +102,8 @@ internal static class MatchCommand
             scanPath,
             advisoriesPath,
             new ToolInfo(ProductInfo.CommandName, VersionInfo.Current),
-            strict);
+            strict,
+            ecosystem);
 
         string json = FindingsResultJson.Serialize(outcome.Result);
         string text = format == "json" ? json : RenderTable(outcome);
@@ -150,8 +161,8 @@ internal static class MatchCommand
         StringBuilder text = new();
 
         text.Append($"deprisk match: {result.ProjectsScanned} project(s), {result.PackagesScanned} package version(s) scanned\n");
-        text.Append($"advisories: {TerminalText.Safe(source.Source, 80)}  {source.Count} NuGet advisories, sha256 {source.Digest[..12]}\n");
-        text.Append($"skipped: {source.SkippedWithdrawn} withdrawn, {source.SkippedNotNuGet} not for NuGet, {source.SkippedInvalid} invalid");
+        text.Append($"advisories: {TerminalText.Safe(source.Source, 80)}  {source.Count} {Ecosystem.FromId(result.Ecosystem).DisplayName} advisories, sha256 {source.Digest[..12]}\n");
+        text.Append($"skipped: {source.SkippedWithdrawn} withdrawn, {source.SkippedOtherEcosystem} for other ecosystems, {source.SkippedInvalid} invalid");
 
         if (result.PackagesSkipped > 0)
         {

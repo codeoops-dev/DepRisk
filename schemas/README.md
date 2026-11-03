@@ -18,4 +18,5 @@ Planned: `plan`, `reach-request` / `reach-response` (analyzer protocol), `bundle
 2. **Breaking changes** (removed or renamed fields, changed meaning or type) require a new `schemaVersion`, a new schema file (`...v2...`), and an ADR.
 3. Readers must reject unknown **major** schema versions with a clear error (exit code 4).
 4. Contract tests validate real outputs against these schemas in CI.
-5. The verification kernel does **not** read JSON; its input format is specified separately (see ADR 0004).
+5. Until 0.1.0 is released, a rename can be made without a new `schemaVersion` if an ADR records it (ADR 0010: `skippedNotNuGet` became `skippedOtherEcosystem`).
+6. The verification kernel does **not** read JSON; its input format is specified separately (see ADR 0004).

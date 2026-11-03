@@ -9,7 +9,7 @@ namespace DepRisk.Data.Osv;
 
 /// <summary>
 /// Loads OSV advisories from a directory of <c>*.json</c> files, a <c>.zip</c> of them (for example OSV's per-ecosystem
-/// dump <c>NuGet/all.zip</c>), or a single <c>.json</c> file. Works offline. The data is untrusted, so every limit below
+/// dumps <c>NuGet/all.zip</c> or <c>npm/all.zip</c>), or a single <c>.json</c> file. Works offline. The data is untrusted, so every limit below
 /// is enforced while reading, and zip entries are read in memory and never extracted to disk.
 /// </summary>
 public static class AdvisorySnapshotLoader
@@ -20,9 +20,14 @@ public static class AdvisorySnapshotLoader
     public const int MaxInvalidSamples = 5;
     private const int MaxDirectoryDepth = 16;
 
-    public static AdvisorySnapshot Load(string path)
+    /// <summary>Loads the advisories that apply to NuGet (kept for callers that predate multiple ecosystems).</summary>
+    public static AdvisorySnapshot Load(string path) => Load(path, Ecosystem.NuGet);
+
+    /// <summary>Loads the advisories that have an entry for <paramref name="ecosystem"/>; all other valid records are only counted.</summary>
+    public static AdvisorySnapshot Load(string path, Ecosystem ecosystem)
     {
         ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(ecosystem);
 
         string fullPath = Path.GetFullPath(path);
 
@@ -32,12 +37,12 @@ public static class AdvisorySnapshotLoader
 
             if (extension.Equals(".zip", StringComparison.OrdinalIgnoreCase))
             {
-                return LoadZip(fullPath);
+                return LoadZip(fullPath, ecosystem);
             }
 
             if (extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
             {
-                return LoadFiles(fullPath, [fullPath], singleFile: true);
+                return LoadFiles(fullPath, [fullPath], singleFile: true, ecosystem);
             }
 
             throw new InvalidInputException(
@@ -49,7 +54,7 @@ public static class AdvisorySnapshotLoader
             throw new InvalidInputException($"advisory source not found: {path}");
         }
 
-        return LoadFiles(fullPath, FindJsonFiles(fullPath, path), singleFile: false);
+        return LoadFiles(fullPath, FindJsonFiles(fullPath, path), singleFile: false, ecosystem);
     }
 
     private static List<string> FindJsonFiles(string directory, string displayPath)
@@ -82,9 +87,9 @@ public static class AdvisorySnapshotLoader
         return files;
     }
 
-    private static AdvisorySnapshot LoadFiles(string root, List<string> files, bool singleFile)
+    private static AdvisorySnapshot LoadFiles(string root, List<string> files, bool singleFile, Ecosystem ecosystem)
     {
-        Collector collector = new();
+        Collector collector = new(ecosystem);
         StringBuilder digestInput = new();
         string baseDirectory = singleFile ? Path.GetDirectoryName(root) ?? root : root;
 
@@ -119,9 +124,9 @@ public static class AdvisorySnapshotLoader
         return collector.ToSnapshot(string.IsNullOrEmpty(source) ? "advisories" : source, Digest.Sha256Hex(digestInput.ToString()));
     }
 
-    private static AdvisorySnapshot LoadZip(string zipPath)
+    private static AdvisorySnapshot LoadZip(string zipPath, Ecosystem ecosystem)
     {
-        Collector collector = new();
+        Collector collector = new(ecosystem);
         string digest;
 
         try
@@ -204,12 +209,15 @@ public static class AdvisorySnapshotLoader
 
     private sealed class Collector
     {
+        private readonly Ecosystem _ecosystem;
         private readonly List<Advisory> _advisories = [];
         private readonly List<string> _invalidSamples = [];
         private long _totalBytes;
         private int _withdrawn;
-        private int _notNuGet;
+        private int _otherEcosystem;
         private int _invalid;
+
+        public Collector(Ecosystem ecosystem) => _ecosystem = ecosystem;
 
         public void AddBytes(long bytes)
         {
@@ -233,7 +241,7 @@ public static class AdvisorySnapshotLoader
 
         public void Add(string display, byte[] bytes)
         {
-            OsvParseResult result = OsvParser.Parse(bytes);
+            OsvParseResult result = OsvParser.Parse(bytes, _ecosystem);
 
             switch (result.Status)
             {
@@ -243,8 +251,8 @@ public static class AdvisorySnapshotLoader
                 case OsvParseStatus.Withdrawn:
                     _withdrawn++;
                     break;
-                case OsvParseStatus.NotNuGet:
-                    _notNuGet++;
+                case OsvParseStatus.OtherEcosystem:
+                    _otherEcosystem++;
                     break;
                 default:
                     AddInvalid($"{display}: {result.Error}");
@@ -258,7 +266,7 @@ public static class AdvisorySnapshotLoader
                 source,
                 digest,
                 _withdrawn,
-                _notNuGet,
+                _otherEcosystem,
                 _invalid,
                 _invalidSamples);
     }
