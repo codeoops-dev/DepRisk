@@ -9,6 +9,7 @@
     "schemaVersion",
     "analyzer",
     "language",
+    "sourceDigest",
     "stats",
     "entrypoints",
     "results",
@@ -36,6 +37,11 @@
     },
     "language": {
       "const": "csharp"
+    },
+    "sourceDigest": {
+      "description": "SHA-256 over the lines '<sha256 of the file>  <relative path>' of every source file that was read, in path order: the identity of exactly what was analyzed.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "stats": {
       "type": "object",

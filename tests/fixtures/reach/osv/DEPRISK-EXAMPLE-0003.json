@@ -1,0 +1,11 @@
+{
+  "id": "DEPRISK-EXAMPLE-0003",
+  "summary": "Synthetic advisory for the reachability fixtures: no symbol list exists for it",
+  "database_specific": { "severity": "LOW" },
+  "affected": [
+    {
+      "package": { "ecosystem": "NuGet", "name": "Other.Lib" },
+      "ranges": [ { "type": "ECOSYSTEM", "events": [ { "introduced": "0" }, { "fixed": "2.1.0" } ] } ]
+    }
+  ]
+}

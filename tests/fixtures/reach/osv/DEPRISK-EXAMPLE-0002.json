@@ -1,0 +1,11 @@
+{
+  "id": "DEPRISK-EXAMPLE-0002",
+  "summary": "Synthetic advisory for the reachability fixtures: a transitive package whose code is not analyzed",
+  "database_specific": { "severity": "MODERATE" },
+  "affected": [
+    {
+      "package": { "ecosystem": "NuGet", "name": "Example.Lib" },
+      "ranges": [ { "type": "ECOSYSTEM", "events": [ { "introduced": "0" }, { "fixed": "1.2.0" } ] } ]
+    }
+  ]
+}

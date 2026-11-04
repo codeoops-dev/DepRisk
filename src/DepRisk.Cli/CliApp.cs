@@ -79,6 +79,9 @@ internal static class CliApp
             case "match":
                 return MatchCommand.Run(args[1..], output, context);
 
+            case "reach":
+                return ReachCommand.Run(args[1..], output, context);
+
             case "rank":
                 return RankCommand.Run(args[1..], output, context);
 
@@ -112,6 +115,9 @@ internal static class CliApp
         output.WriteLine("  match [path]  Match dependencies against local OSV advisories (offline)");
         output.WriteLine("                  --advisories <dir|.zip|.json>   advisory data (required)");
         output.WriteLine("                  --format table|json  --out <file>  --strict  --ecosystem auto|nuget|npm");
+        output.WriteLine("  reach [path]  Can the vulnerable code be reached from your application? (C#, needs symbol maps and the analyzer)");
+        output.WriteLine("                  --advisories <...>  --symbols <file|dir>  --source <dir>  --entrypoints auto|public-api|none");
+        output.WriteLine("                  --entrypoint <Ns.Type.Method>  --analyzer <file>  --timeout <seconds>  --format table|json  --out <file>");
         output.WriteLine("  rank [path]   Like match, ordered by CISA KEV, EPSS, and CVSS (baseline; offline)");
         output.WriteLine("                  --advisories <...> (required)  --epss <csv[.gz]>  --kev <json>");
         output.WriteLine("                  --format table|json|sarif  --out <file>  --strict  --ecosystem auto|nuget|npm");

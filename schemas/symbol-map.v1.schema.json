@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/codeoops-dev/deprisk/schemas/symbol-map.v1.schema.json",
+  "title": "DepRisk symbol map (v1)",
+  "description": "A curated list of the public entry points (symbols) through which application code reaches the flaw of an advisory in a package. Input of 'deprisk reach --symbols'. OSV carries no such data for NuGet, so it has to come from here. See docs/symbol-maps.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "language",
+    "entries"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "language": {
+      "const": "csharp"
+    },
+    "entries": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "advisory",
+          "package",
+          "symbols",
+          "complete",
+          "source"
+        ],
+        "properties": {
+          "advisory": {
+            "description": "An advisory id or one of its aliases (for example a CVE id); matched ignoring case.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._:-]{1,100}$"
+          },
+          "package": {
+            "description": "The NuGet package id; matched ignoring case.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{1,200}$"
+          },
+          "symbols": {
+            "description": "Namespace.Type.Member, Namespace.Type.#ctor (constructors), or Namespace.Type.* (any member, including constructors).",
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10000,
+            "items": {
+              "type": "string",
+              "maxLength": 512,
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*\\.([A-Za-z_][A-Za-z0-9_]*|\\*|#ctor)$"
+            }
+          },
+          "complete": {
+            "description": "True only if the list is claimed to contain every public way to reach the flaw. Required, no default: without true, a missing path is 'unknown', never 'unreachable'.",
+            "type": "boolean"
+          },
+          "source": {
+            "description": "Provenance: who or what says these are the symbols (a reference, a commit, an analyst).",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      }
+    }
+  }
+}

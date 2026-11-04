@@ -301,3 +301,46 @@ jobs:
           assert result["stats"]["filesWithErrors"] == 0, result["stats"]
           print("reachability protocol matches the schemas;", labels)
           PY
+
+  reach-e2e:
+    name: reach command with the real analyzer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+
+      - name: Build the analyzer
+        run: cargo build --release --locked
+        working-directory: analyzers/reach
+
+      - name: Build the CLI
+        run: dotnet build -c Release src/DepRisk.Cli
+
+      # Contract test: the CLI and the analyzer together, on fixtures (a synthetic advisory, a symbol map, a C# source tree).
+      - name: reach output matches schemas/reachability.v1.schema.json
+        run: |
+          python3 -m pip install --user check-jsonschema==0.38.2
+          python3 -m check_jsonschema --schemafile schemas/symbol-map.v1.schema.json tests/fixtures/reach/symbols/example.json
+          dotnet run --no-build -c Release --project src/DepRisk.Cli -- reach tests/fixtures/reach/assets \
+            --source tests/fixtures/reach/csharp \
+            --advisories tests/fixtures/reach/osv \
+            --symbols tests/fixtures/reach/symbols \
+            --analyzer analyzers/reach/target/release/deprisk-reach \
+            --format json --out reach.json
+          python3 -m check_jsonschema --schemafile schemas/reachability.v1.schema.json reach.json
+          python3 - <<'PY'
+          import json
+          doc = json.load(open("reach.json", encoding="utf-8"))
+          verdicts = {f["finding"]["id"]: (f["reachability"]["label"], f["reachability"]["reason"]) for f in doc["findings"]}
+          assert verdicts["DEPRISK-EXAMPLE-0001"] == ("reachable", "static-path"), verdicts
+          assert verdicts["DEPRISK-EXAMPLE-0002"] == ("unknown", "transitive-package-code-not-analyzed"), verdicts
+          assert verdicts["DEPRISK-EXAMPLE-0003"] == ("unknown", "no-symbols"), verdicts
+          assert doc["analyzer"]["name"] == "deprisk-reach" and doc["source"]["filesWithErrors"] == 0, doc["analyzer"]
+          print("reach: CLI and analyzer agree with the schema and the expected verdicts", verdicts)
+          PY

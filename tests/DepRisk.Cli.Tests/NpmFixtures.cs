@@ -9,10 +9,15 @@ internal static class NpmFixtures
     /// <summary>A workspace root with two members: links, first-party entries, and copies nested inside a member.</summary>
     public const string Workspaces = "workspaces.package-lock.json";
 
-    public static string Read(string name)
+    public static string Read(string name) => ReadResource("npm/" + name);
+
+    /// <summary>A file of tests/fixtures/reach (the reachability fixtures), for example "osv/DEPRISK-EXAMPLE-0001.json".</summary>
+    public static string ReadReach(string name) => ReadResource("reach/" + name.Replace('/', Path.DirectorySeparatorChar));
+
+    private static string ReadResource(string logicalName)
     {
-        using Stream stream = typeof(NpmFixtures).Assembly.GetManifestResourceStream("npm/" + name)
-            ?? throw new InvalidOperationException($"fixture 'npm/{name}' is not embedded.");
+        using Stream stream = typeof(NpmFixtures).Assembly.GetManifestResourceStream(logicalName)
+            ?? throw new InvalidOperationException($"fixture '{logicalName}' is not embedded.");
         using StreamReader reader = new(stream);
         return reader.ReadToEnd();
     }

@@ -650,3 +650,19 @@ fn a_parse_that_exceeds_its_time_limit_is_skipped_and_reported_so_the_result_is_
         run_raw(&project.request(json!([{ "key": "t", "symbols": [JSON_SYM], "complete": true }]), json!({ "mode": "auto" })));
     assert_eq!(label(&relaxed), ("unreachable", "no-path"));
 }
+
+#[test]
+fn the_source_digest_identifies_exactly_what_was_analyzed() {
+    let files = [("A.cs", "class A { static void Main() { } }"), ("B.cs", "class B { }")];
+    let a = analyze(&files, &[JSON_SYM], true);
+    let b = analyze(&files, &[JSON_SYM], true);
+    let changed = analyze(&[("A.cs", "class A { static void Main() { } }"), ("B.cs", "class B { int x; }")], &[JSON_SYM], true);
+    let renamed = analyze(&[("A.cs", "class A { static void Main() { } }"), ("C.cs", "class B { }")], &[JSON_SYM], true);
+    let digest = |o: &Value| o["sourceDigest"].as_str().unwrap().to_string();
+
+    assert_eq!(digest(&a).len(), 64);
+    assert!(digest(&a).chars().all(|c| c.is_ascii_hexdigit()));
+    assert_eq!(digest(&a), digest(&b));
+    assert_ne!(digest(&a), digest(&changed));
+    assert_ne!(digest(&a), digest(&renamed));
+}

@@ -1,0 +1,12 @@
+{
+  "id": "DEPRISK-EXAMPLE-0001",
+  "aliases": ["CVE-2099-0001"],
+  "summary": "Synthetic advisory for the reachability fixtures: reached from Main",
+  "database_specific": { "severity": "HIGH" },
+  "affected": [
+    {
+      "package": { "ecosystem": "NuGet", "name": "Newtonsoft.Json" },
+      "ranges": [ { "type": "ECOSYSTEM", "events": [ { "introduced": "0" }, { "fixed": "13.0.1" } ] } ]
+    }
+  ]
+}

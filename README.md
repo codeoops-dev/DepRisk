@@ -102,7 +102,6 @@ Advisory data (OSV dumps), EPSS scores, and the CISA KEV list are files you down
 Planned (not in any release yet; see [Feature status](#feature-status)):
 
 ```bash
-deprisk reach                     # reachability analysis against your source
 deprisk rank                      # risk distribution per finding (uncertainty model)
 
 # Get a provably consistent fix plan within 6 engineer-hours
@@ -179,7 +178,7 @@ Commands marked *(planned)* do not exist yet; the table in [Feature status](#fea
 | `deprisk match [path]` | Match the resolved dependencies against local OSV advisories: `--advisories <dir\|.zip\|.json>` (required), `--ecosystem`, `--format table\|json`, `--out`, `--strict`. Offline; matching is by version only. |
 | `deprisk rank [path]` | Like `match`, ordered by the baseline method: CISA KEV, then EPSS, then CVSS v3 base score. `--advisories <...>` (required), `--epss <csv[.gz]>`, `--kev <json>`, `--ecosystem`, `--format table\|json`, `--out`, `--strict`. Offline; the reference (B2) for the later model. |
 | `deprisk graph [path]` | The dependency hypergraph of the resolved graph: nodes, hyperedges (one per package version that requires something, plus a project hyperedge), every requirement checked against the resolved version (violated and undecided ones are listed), statistics. NuGet and npm (for npm, requirements are resolved the way Node does it and ranges are node-semver). `--ecosystem`, `--format table\|json\|dot`, `--out`. Offline. |
-| `deprisk reach` *(planned)* | Run reachability analysis from your entrypoints to vulnerable symbols. |
+| `deprisk reach [path]` | For every advisory that applies, can the vulnerable code be reached from your application (C#)? `--advisories <...>` and `--symbols <file\|dir>` (required; see [docs/symbol-maps.md](docs/symbol-maps.md)), `--source <dir>`, `--entrypoints auto\|public-api\|none`, `--entrypoint <Ns.Type.Method>`, `--analyzer <file>` (or `DEPRISK_REACH`; build it from `analyzers/reach`, it is not in the NuGet package yet), `--timeout`, `--format table\|json`, `--out`. Offline. |
 | `deprisk rank` *(planned: risk distributions)* | Compute risk distributions and rank findings. Today `rank` is the baseline ordering described above. |
 | `deprisk plan` *(planned)* | Compute an optimal remediation plan under budget and constraints. |
 | `deprisk verify <plan>` *(planned)* | Check a plan with the formally verified kernel. |
@@ -593,7 +592,8 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 | Model | Dependency hypergraph of the resolved graph (NuGet; npm with Node-style path resolution and node-semver ranges), requirement checks, DOT/JSON export via `deprisk graph` | ✅ |
 | Model | Hypergraph with candidate versions and allowed tuples (for the optimizer) | 🗺️ |
 | Analysis | Reachability: C# analyzer (`analyzers/reach`: standalone process with a JSON protocol, conservative call graph, labels reachable / possibly-reachable / unreachable / unknown; build from source; not yet wired into the CLI) | 🚧 |
-| Analysis | `deprisk reach`, symbol maps, reachability in `rank` and `ci` | 🗺️ |
+| Analysis | `deprisk reach` with symbol maps ([format](docs/symbol-maps.md)); needs the analyzer built from source | 🚧 |
+| Analysis | Reachability labels in `rank` and in the `ci` policy gate | 🗺️ |
 | Analysis | Reachability: JS/TS | 🗺️ |
 | Analysis | Symbol mining from fix commits | 🗺️ |
 | Risk | Monte Carlo risk distributions | 🗺️ |

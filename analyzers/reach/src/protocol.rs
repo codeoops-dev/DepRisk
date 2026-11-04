@@ -88,6 +88,9 @@ pub struct Output {
     pub schema_version: u32,
     pub analyzer: AnalyzerInfo,
     pub language: &'static str,
+    /// SHA-256 over the lines `<sha256 of the file>  <relative path>` of every source file that was read, in path order:
+    /// the identity of exactly what was analyzed.
+    pub source_digest: String,
     pub stats: Stats,
     pub entrypoints: Vec<EntrypointOut>,
     pub results: Vec<TargetResult>,

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "language": "csharp",
+  "entries": [
+    {
+      "advisory": "CVE-2099-0001",
+      "package": "Newtonsoft.Json",
+      "symbols": [ "Newtonsoft.Json.JsonConvert.DeserializeObject" ],
+      "complete": false,
+      "source": "example only: written for the DepRisk fixtures, not a statement about any real advisory"
+    },
+    {
+      "advisory": "DEPRISK-EXAMPLE-0002",
+      "package": "Example.Lib",
+      "symbols": [ "Example.Lib.Thing.Run" ],
+      "complete": true,
+      "source": "example only: written for the DepRisk fixtures"
+    }
+  ]
+}

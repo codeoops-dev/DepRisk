@@ -9,6 +9,8 @@ mod reach;
 mod targets;
 
 use protocol::*;
+use sha2::{Digest, Sha256};
+use std::fmt::Write as _;
 use std::io::{Read, Write};
 use std::path::Path;
 
@@ -79,6 +81,7 @@ pub fn execute(request: &Request) -> Result<Output, String> {
     let file_timeout = std::time::Duration::from_millis(request.limits.file_timeout_ms);
 
     let mut parsed: Vec<program::Parsed> = Vec::new();
+    let mut digest_lines = String::new();
     let mut total = 0usize;
     for file in &discovery.files {
         let too_big = std::fs::metadata(&file.path).map(|m| m.len() as usize > request.limits.max_file_bytes).unwrap_or(true);
@@ -95,6 +98,7 @@ pub fn execute(request: &Request) -> Result<Output, String> {
             continue;
         };
         total += bytes.len();
+        let _ = writeln!(digest_lines, "{}  {}", hex(&Sha256::digest(&bytes)), file.rel);
         if total > MAX_TOTAL_SOURCE_BYTES {
             return Err("sources exceed the total size limit".to_string());
         }
@@ -142,6 +146,7 @@ pub fn execute(request: &Request) -> Result<Output, String> {
         schema_version: SCHEMA_VERSION,
         analyzer: AnalyzerInfo { name: "deprisk-reach", version: env!("CARGO_PKG_VERSION") },
         language: "csharp",
+        source_digest: hex(&Sha256::digest(digest_lines.as_bytes())),
         stats,
         entrypoints: shown,
         results,
@@ -164,6 +169,13 @@ fn parse_with_deadline(parser: &mut tree_sitter::Parser, src: &str, timeout: std
     let mut read = |offset: usize, _: tree_sitter::Point| -> &[u8] { bytes.get(offset..).unwrap_or(&[]) };
     let options = tree_sitter::ParseOptions::new().progress_callback(&mut expired);
     parser.parse_with_options(&mut read, None, Some(options))
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().fold(String::with_capacity(bytes.len() * 2), |mut s, b| {
+        let _ = write!(s, "{b:02x}");
+        s
+    })
 }
 
 fn push(list: &mut Vec<Diagnostic>, file: Option<String>, message: String) {

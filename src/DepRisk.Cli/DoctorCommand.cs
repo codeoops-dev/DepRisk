@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using DepRisk.Audit;
+using DepRisk.Data.Reach;
 using DepRisk.Core;
 
 namespace DepRisk.Cli;
@@ -26,7 +27,7 @@ internal static class DoctorCommand
             new(Status.Ok, "version", VersionInfo.Current),
             new(Status.Ok, "runtime", RuntimeInformation.FrameworkDescription),
             new(Status.Ok, "platform", $"{RuntimeInformation.OSDescription} ({RuntimeInformation.OSArchitecture})"),
-            CheckCompanion("deprisk-reach", "reachability analyzer (planned, v0.2)"),
+            CheckAnalyzer(),
             CheckCompanion("deprisk-kernel", "verification kernel (planned, v0.4)"),
             CheckAudit(context),
             CheckConfig(context),
@@ -62,6 +63,23 @@ internal static class DoctorCommand
         return path is null
             ? new Check(Status.Info, name, $"not installed: {description}")
             : new Check(Status.Ok, name, path);
+    }
+
+    private static Check CheckAnalyzer()
+    {
+        // The same places the 'reach' command looks in (the PATH is not one of them).
+        try
+        {
+            string? path = AnalyzerLocator.Find(null, Environment.CurrentDirectory, Environment.GetEnvironmentVariable, AppContext.BaseDirectory);
+
+            return path is null
+                ? new Check(Status.Info, "deprisk-reach", $"not found: reachability analyzer (pass --analyzer, set {AnalyzerLocator.EnvironmentVariable}, or put it next to deprisk)")
+                : new Check(Status.Ok, "deprisk-reach", path);
+        }
+        catch (InvalidInputException ex)
+        {
+            return new Check(Status.Warn, "deprisk-reach", ex.Message);
+        }
     }
 
     private static Check CheckAudit(CliContext context)
