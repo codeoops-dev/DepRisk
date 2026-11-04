@@ -592,7 +592,8 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 | Ingest | CycloneDX / SPDX SBOM | 🗺️ |
 | Model | Dependency hypergraph of the resolved graph (NuGet; npm with Node-style path resolution and node-semver ranges), requirement checks, DOT/JSON export via `deprisk graph` | ✅ |
 | Model | Hypergraph with candidate versions and allowed tuples (for the optimizer) | 🗺️ |
-| Analysis | Reachability: C# | 🗺️ |
+| Analysis | Reachability: C# analyzer (`analyzers/reach`: standalone process with a JSON protocol, conservative call graph, labels reachable / possibly-reachable / unreachable / unknown; build from source; not yet wired into the CLI) | 🚧 |
+| Analysis | `deprisk reach`, symbol maps, reachability in `rank` and `ci` | 🗺️ |
 | Analysis | Reachability: JS/TS | 🗺️ |
 | Analysis | Symbol mining from fix commits | 🗺️ |
 | Risk | Monte Carlo risk distributions | 🗺️ |

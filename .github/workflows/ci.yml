@@ -240,3 +240,64 @@ jobs:
           assert any(t["stats"]["hyperedges"] > 0 for t in targets), "expected hyperedges in the test projects"
           print(len(targets), "target(s); schema OK; violated =", sum(t["stats"]["violated"] for t in targets))
           PY
+
+  reach-analyzer:
+    name: reachability analyzer (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: analyzers/reach
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy --component rustfmt && rustup default stable
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Lint
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Build
+        run: cargo build --release --locked
+
+      # Contract test: real analyzer output against the protocol schemas, on a fixture project.
+      - name: Protocol matches the schemas
+        if: runner.os == 'Linux'
+        working-directory: .
+        run: |
+          python3 -m pip install --user check-jsonschema==0.38.2
+          python3 - <<'PY'
+          import json, os
+          root = os.path.abspath("tests/fixtures/reach/csharp")
+          request = {
+              "schemaVersion": 1,
+              "root": root,
+              "entrypoints": {"mode": "auto"},
+              "targets": [
+                  {"key": "reached", "symbols": ["Newtonsoft.Json.JsonConvert.DeserializeObject"], "complete": True},
+                  {"key": "dead-code-only", "symbols": ["System.Net.Http.HttpClient.#ctor"], "complete": True},
+              ],
+          }
+          json.dump(request, open("reach-request.json", "w", encoding="utf-8"))
+          PY
+          python3 -m check_jsonschema --schemafile schemas/reach-request.v1.schema.json reach-request.json
+          analyzers/reach/target/release/deprisk-reach < reach-request.json > reach-result.json
+          python3 -m check_jsonschema --schemafile schemas/reach-result.v1.schema.json reach-result.json
+          python3 - <<'PY'
+          import json
+          result = json.load(open("reach-result.json", encoding="utf-8"))
+          labels = {r["key"]: (r["label"], r["reason"]) for r in result["results"]}
+          assert labels["reached"] == ("reachable", "static-path"), labels
+          assert labels["dead-code-only"] == ("unreachable", "no-path"), labels
+          assert result["stats"]["filesWithErrors"] == 0, result["stats"]
+          print("reachability protocol matches the schemas;", labels)
+          PY

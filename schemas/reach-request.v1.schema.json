@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/codeoops-dev/DepRisk/schemas/reach-request.v1.schema.json",
+  "title": "DepRisk reach-request v1",
+  "description": "Protocol: what the DepRisk CLI sends to the reachability analyzer (deprisk-reach) on stdin. Everything below 'root' is analyzed as one program. Unknown properties are ignored by the analyzer; an unknown schemaVersion is rejected.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "root",
+    "targets"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "root": {
+      "description": "Directory with the C# sources.",
+      "type": "string",
+      "minLength": 1
+    },
+    "entrypoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "description": "auto: Main, top-level statements, controllers, hosted services. public-api: public members of public types (libraries). none: only 'explicit'.",
+          "enum": [
+            "auto",
+            "public-api",
+            "none"
+          ],
+          "default": "auto"
+        },
+        "explicit": {
+          "description": "Namespace.Type.Method (all overloads) or Namespace.Type.* (every member of the type), added to the mode's entrypoints.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        }
+      }
+    },
+    "targets": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "symbols",
+          "complete"
+        ],
+        "properties": {
+          "key": {
+            "description": "Opaque; the result is reported under it.",
+            "type": "string"
+          },
+          "symbols": {
+            "description": "Namespace.Type.Member, Namespace.Type.#ctor, or Namespace.Type.* (any member, including constructors).",
+            "type": "array",
+            "maxItems": 10000,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*\\.([A-Za-z_][A-Za-z0-9_]*|\\*|#ctor)$",
+              "maxLength": 512
+            }
+          },
+          "complete": {
+            "description": "True only if the list is claimed to contain every public way to reach the flaw. Without it, a missing path is 'unknown', never 'unreachable'.",
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxFiles": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 20000
+        },
+        "maxFileBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2097152
+        },
+        "fileTimeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 5000
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/codeoops-dev/DepRisk/schemas/reach-result.v1.schema.json",
+  "title": "DepRisk reach-result v1",
+  "description": "Protocol: what the reachability analyzer (deprisk-reach) writes on stdout. Deterministic for the same sources and request. Labels are statements about the modeled call graph, not about runtime behavior (see ADR 0012).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "analyzer",
+    "language",
+    "stats",
+    "entrypoints",
+    "results",
+    "diagnostics"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "analyzer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "const": "deprisk-reach"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "language": {
+      "const": "csharp"
+    },
+    "stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "files",
+        "filesSkipped",
+        "filesWithErrors",
+        "types",
+        "methods",
+        "edges",
+        "entrypoints",
+        "reflectionSites"
+      ],
+      "properties": {
+        "files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "filesSkipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "filesWithErrors": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "types": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "methods": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "edges": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "entrypoints": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reflectionSites": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "entrypoints": {
+      "description": "Sorted by method; at most 200 are listed (stats.entrypoints has the count).",
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "method",
+          "kind"
+        ],
+        "properties": {
+          "method": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "main",
+              "top-level",
+              "controller",
+              "hosted-service",
+              "public-api",
+              "explicit",
+              "unmodeled"
+            ]
+          }
+        }
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "label",
+          "reason",
+          "path",
+          "symbol"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "enum": [
+              "reachable",
+              "possibly-reachable",
+              "unreachable",
+              "unknown"
+            ]
+          },
+          "reason": {
+            "enum": [
+              "static-path",
+              "dynamic-path",
+              "no-path",
+              "no-symbols",
+              "no-entrypoints",
+              "symbol-list-incomplete",
+              "incomplete-analysis",
+              "unresolved-reflection",
+              "unresolved-receiver"
+            ]
+          },
+          "path": {
+            "description": "Shortest path from an entrypoint to the reached symbol (at most 100 edges): static edges only for 'reachable', all edges for 'possibly-reachable'; empty otherwise.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "from",
+                "to",
+                "kind",
+                "file",
+                "line"
+              ],
+              "properties": {
+                "from": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "static",
+                    "dynamic"
+                  ]
+                },
+                "file": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "line": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          "symbol": {
+            "description": "The symbol that was reached; null when there is no path.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "diagnostics": {
+      "description": "At most 200.",
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file",
+          "message"
+        ],
+        "properties": {
+          "file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
