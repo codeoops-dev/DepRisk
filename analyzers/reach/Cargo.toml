@@ -11,7 +11,7 @@ publish = false
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
-tree-sitter = "0.26"
+tree-sitter = "0.27"
 tree-sitter-c-sharp = "0.23"
 
 [profile.release]
