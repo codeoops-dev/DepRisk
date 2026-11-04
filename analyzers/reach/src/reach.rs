@@ -210,7 +210,9 @@ pub fn label_targets(
             continue;
         }
         if entries.is_empty() {
-            out.push(result("unknown", "no-entrypoints", Vec::new(), None));
+            // If something could not be read, that is the more useful reason: the entrypoints may have been in it.
+            let reason = if completeness.incomplete { "incomplete-analysis" } else { "no-entrypoints" };
+            out.push(result("unknown", reason, Vec::new(), None));
             continue;
         }
 

@@ -12,3 +12,8 @@ updates:
     directory: "/analyzers/reach"
     schedule:
       interval: "weekly"
+    groups:
+      # The grammar and the runtime move together; one pull request, one CI run.
+      tree-sitter:
+        patterns:
+          - "tree-sitter*"

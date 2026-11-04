@@ -23,7 +23,7 @@ Two facts shape the design. First, OSV has no symbol data for NuGet or npm advis
 - `reachable`: a path of static edges from an entrypoint to a symbol. The path is returned (each edge with file and line).
 - `possibly-reachable`: no static path, but a path exists when dynamic edges are included.
 - `unreachable`: no path even with dynamic edges, **and** nothing could hide one: every file was read completely, no reflective call with an unreadable target is reachable, no call on an unknown receiver in reachable code has the member name of a symbol whose type the file does not name, and the symbol list is declared `complete`.
-- `unknown`, with the reason: `no-symbols`, `no-entrypoints`, `incomplete-analysis` (a file was skipped, too large, timed out, or has syntax the grammar could not read; or nesting was too deep), `unresolved-reflection`, `unresolved-receiver`, `symbol-list-incomplete`.
+- `unknown`, with the reason: `no-symbols`, `no-entrypoints`, `incomplete-analysis` (a file was skipped, too large, timed out, or has syntax the grammar could not read; or nesting was too deep; it also takes the place of `no-entrypoints` when something could not be read, because the entrypoints may have been in it), `unresolved-reflection`, `unresolved-receiver`, `symbol-list-incomplete`.
 
 The labels are statements about the modeled call graph, not about runtime behavior.
 
@@ -35,7 +35,7 @@ The labels are statements about the modeled call graph, not about runtime behavi
 
 **Bounds (hostile sources).** Symbolic links are never followed; `bin`, `obj`, `.git`, `node_modules`, `.deprisk`, `.vs` are not entered; at most 20,000 files of at most 2 MiB each (configurable, reported when exceeded), a total of 512 MiB, a parse time limit per file, bounded walking depth, a bounded request size. A file that hits a limit is reported and makes a missing path `unknown`.
 
-**Toolchain.** Rust 1.89 or newer, `tree-sitter` 0.25 and `tree-sitter-c-sharp` 0.23 (needed for C# 12 syntax: with 0.21, 21 of 65 files of this repository did not parse completely). `Cargo.lock` is committed and CI builds with `--locked`; `tree-sitter-language` is pinned to 0.1.5 because 0.1.9 needs a newer Rust than the 1.89 this was verified with.
+**Toolchain.** Rust 1.89 or newer, `tree-sitter` 0.26 and `tree-sitter-c-sharp` 0.23 (needed for C# 12 syntax: with the 0.21 grammar, 21 of 65 files of this repository did not parse completely). `Cargo.lock` is committed and CI builds with `--locked`; `tree-sitter-language` is pinned to 0.1.5 because 0.1.9 needs a newer Rust than the 1.89 this was verified with. The per-file parse deadline uses tree-sitter's progress callback (the timeout setter was deprecated in 0.25 and removed in 0.26, which broke the first automatic dependency update; a test now covers the deadline). In the 0.x line a minor version can break the API, so dependency updates for the tree-sitter crates are grouped into one pull request, and CI runs the analyzer's format, lint, and test steps on every pull request.
 
 ## Known limits (recorded, not hidden)
 

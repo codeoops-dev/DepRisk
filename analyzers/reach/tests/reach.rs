@@ -630,3 +630,23 @@ fn garbage_on_stdin_is_rejected_with_exit_code_2() {
     let out = child.wait_with_output().unwrap();
     assert_eq!(out.status.code(), Some(2));
 }
+
+#[test]
+fn a_parse_that_exceeds_its_time_limit_is_skipped_and_reported_so_the_result_is_unknown() {
+    // About 1 MB of statements: far more than one millisecond of parsing, on any machine.
+    let body = "int a = 1;\n".repeat(90_000);
+    let source = format!("class P {{ static void Main() {{\n{body}}} }}");
+    let project = Project::new(&[("P.cs", &source)]);
+    let mut request = project.request(json!([{ "key": "t", "symbols": [JSON_SYM], "complete": true }]), json!({ "mode": "auto" }));
+    request["limits"] = json!({ "fileTimeoutMs": 1 });
+    let (code, out, _) = run_raw(&request);
+    assert_eq!(code, 0);
+    assert_eq!(label(&out), ("unknown", "incomplete-analysis"));
+    assert_eq!(out["stats"]["filesSkipped"], 1);
+    assert!(out["diagnostics"][0]["message"].as_str().unwrap().contains("timed out"));
+
+    // The same file with the default limit is read completely.
+    let (_, relaxed, _) =
+        run_raw(&project.request(json!([{ "key": "t", "symbols": [JSON_SYM], "complete": true }]), json!({ "mode": "auto" })));
+    assert_eq!(label(&relaxed), ("unreachable", "no-path"));
+}

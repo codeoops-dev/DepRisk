@@ -76,8 +76,7 @@ pub fn execute(request: &Request) -> Result<Output, String> {
 
     let mut parser = tree_sitter::Parser::new();
     parser.set_language(&tree_sitter_c_sharp::LANGUAGE.into()).map_err(|e| format!("grammar error: {e}"))?;
-    #[allow(deprecated)]
-    parser.set_timeout_micros(request.limits.file_timeout_ms.saturating_mul(1000));
+    let file_timeout = std::time::Duration::from_millis(request.limits.file_timeout_ms);
 
     let mut parsed: Vec<program::Parsed> = Vec::new();
     let mut total = 0usize;
@@ -101,7 +100,7 @@ pub fn execute(request: &Request) -> Result<Output, String> {
         }
         let src = String::from_utf8_lossy(&bytes).to_string();
         parser.reset();
-        match parser.parse(&src, None) {
+        match parse_with_deadline(&mut parser, &src, file_timeout) {
             Some(tree) => {
                 let has_error = tree.root_node().has_error();
                 if has_error {
@@ -148,6 +147,23 @@ pub fn execute(request: &Request) -> Result<Output, String> {
         results,
         diagnostics,
     })
+}
+
+/// Parses `src`, giving up (None) once `timeout` has passed. tree-sitter reports progress while it parses; the callback is
+/// where the deadline is enforced (this replaces the timeout setter that tree-sitter 0.26 removed).
+fn parse_with_deadline(parser: &mut tree_sitter::Parser, src: &str, timeout: std::time::Duration) -> Option<tree_sitter::Tree> {
+    let bytes = src.as_bytes();
+    let deadline = std::time::Instant::now() + timeout;
+    let mut expired = |_: &tree_sitter::ParseState| {
+        if std::time::Instant::now() >= deadline {
+            std::ops::ControlFlow::Break(())
+        } else {
+            std::ops::ControlFlow::Continue(())
+        }
+    };
+    let mut read = |offset: usize, _: tree_sitter::Point| -> &[u8] { bytes.get(offset..).unwrap_or(&[]) };
+    let options = tree_sitter::ParseOptions::new().progress_callback(&mut expired);
+    parser.parse_with_options(&mut read, None, Some(options))
 }
 
 fn push(list: &mut Vec<Diagnostic>, file: Option<String>, message: String) {
