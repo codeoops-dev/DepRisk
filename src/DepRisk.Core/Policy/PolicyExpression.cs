@@ -1,6 +1,7 @@
 using System.Globalization;
 using DepRisk.Core.Model;
 using DepRisk.Core.Ranking;
+using DepRisk.Core.Reach;
 
 namespace DepRisk.Core.Policy;
 
@@ -9,9 +10,11 @@ namespace DepRisk.Core.Policy;
 /// each clause is terms joined by '&amp;' (all terms must hold for the same finding).
 /// Terms: <c>any</c>, <c>kev</c>, <c>ransomware</c>, <c>direct</c>, <c>fixable</c>,
 /// <c>cvss&gt;=N</c>, <c>cvss&gt;N</c> (0 to 10), <c>epss&gt;=P</c>, <c>epss&gt;P</c> (0 to 1),
-/// <c>severity&gt;=LEVEL</c> (low, moderate or medium, high, critical).
-/// A term about a signal that is not available for a finding is false for that finding (never "zero").
-/// Example: <c>kev&amp;fixable,cvss&gt;=9</c>. Reachability terms do not exist yet and are rejected.
+/// <c>severity&gt;=LEVEL</c> (low, moderate or medium, high, critical), and the reachability terms <c>reachable</c>,
+/// <c>possibly-reachable</c>, <c>reach-unknown</c>, <c>unreachable</c>, and <c>not-unreachable</c> (reachable, possibly reachable, or
+/// unknown: everything that is not proven unreachable, the safe way to gate).
+/// A term about a signal that is not available for a finding is false for that finding (never "zero"); that includes the
+/// reachability terms for a finding that was not analyzed. Example: <c>kev&amp;fixable,cvss&gt;=9&amp;not-unreachable</c>.
 /// </summary>
 public sealed class PolicyExpression
 {
@@ -24,6 +27,9 @@ public sealed class PolicyExpression
     }
 
     public string Text { get; }
+
+    /// <summary>True if any term needs a reachability verdict (the caller must then supply symbol maps).</summary>
+    public bool UsesReachability => _clauses.Any(clause => clause.Any(term => term.UsesReachability));
 
     public static bool TryParse(string? text, out PolicyExpression? expression, out string error)
     {
@@ -78,7 +84,13 @@ public sealed class PolicyExpression
     {
         private readonly Func<RankedFinding, bool> _predicate;
 
-        private Term(Func<RankedFinding, bool> predicate) => _predicate = predicate;
+        private Term(Func<RankedFinding, bool> predicate, bool usesReachability = false)
+        {
+            _predicate = predicate;
+            UsesReachability = usesReachability;
+        }
+
+        public bool UsesReachability { get; }
 
         public bool Holds(RankedFinding finding) => _predicate(finding);
 
@@ -113,12 +125,28 @@ public sealed class PolicyExpression
                     term = new Term(f => f.FixedVersions.Count > 0);
                     return true;
                 case "reachable":
-                    error = "'reachable' is not available yet: reachability analysis is on the roadmap (v0.2)";
-                    return false;
+                    term = ReachTerm(label => label == ReachLabels.Reachable);
+                    return true;
+                case "possibly-reachable":
+                    term = ReachTerm(label => label == ReachLabels.PossiblyReachable);
+                    return true;
+                case "reach-unknown":
+                    term = ReachTerm(label => label == ReachLabels.Unknown);
+                    return true;
+                case "unreachable":
+                    term = ReachTerm(label => label == ReachLabels.Unreachable);
+                    return true;
+                case "not-unreachable":
+                    term = ReachTerm(label => label != ReachLabels.Unreachable);
+                    return true;
             }
 
             return TryParseComparison(lower, out term, out error);
         }
+
+        /// <summary>A term on the reachability label; false for a finding that has no verdict.</summary>
+        private static Term ReachTerm(Func<string, bool> label) =>
+            new(f => f.Reachability is { } r && label(r.Label), usesReachability: true);
 
         private static bool TryParseComparison(string lower, out Term? term, out string error)
         {
@@ -138,7 +166,7 @@ public sealed class PolicyExpression
 
             if (op <= 0)
             {
-                error = $"unknown term '{Shown(lower)}' (terms: any, kev, ransomware, direct, fixable, cvss>=N, epss>=P, severity>=LEVEL)";
+                error = $"unknown term '{Shown(lower)}' (terms: any, kev, ransomware, direct, fixable, cvss>=N, epss>=P, severity>=LEVEL, reachable, possibly-reachable, reach-unknown, unreachable, not-unreachable)";
                 return false;
             }
 
@@ -186,7 +214,7 @@ public sealed class PolicyExpression
                     return true;
 
                 default:
-                    error = $"unknown term '{Shown(lower)}' (terms: any, kev, ransomware, direct, fixable, cvss>=N, epss>=P, severity>=LEVEL)";
+                    error = $"unknown term '{Shown(lower)}' (terms: any, kev, ransomware, direct, fixable, cvss>=N, epss>=P, severity>=LEVEL, reachable, possibly-reachable, reach-unknown, unreachable, not-unreachable)";
                     return false;
             }
         }

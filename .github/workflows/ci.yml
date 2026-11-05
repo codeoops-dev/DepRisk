@@ -344,3 +344,35 @@ jobs:
           assert doc["analyzer"]["name"] == "deprisk-reach" and doc["source"]["filesWithErrors"] == 0, doc["analyzer"]
           print("reach: CLI and analyzer agree with the schema and the expected verdicts", verdicts)
           PY
+
+      # rank and ci with reachability, on the same fixtures: schema, order, and the gate.
+      - name: rank and ci with reachability
+        run: |
+          cli="dotnet run --no-build -c Release --project src/DepRisk.Cli --"
+          common="tests/fixtures/reach/assets --source tests/fixtures/reach/csharp --advisories tests/fixtures/reach/osv --symbols tests/fixtures/reach/symbols --analyzer analyzers/reach/target/release/deprisk-reach"
+          $cli rank $common --format json --out rank-reach.json
+          python3 -m check_jsonschema --schemafile schemas/ranking.v1.schema.json rank-reach.json
+          python3 - <<'PY'
+          import json
+          doc = json.load(open("rank-reach.json", encoding="utf-8"))
+          labels = {f["id"]: f["reachability"]["label"] for f in doc["findings"]}
+          assert labels["DEPRISK-EXAMPLE-0001"] == "reachable", labels
+          assert doc["reach"]["summary"]["reachable"] == 1, doc["reach"]
+          print("rank carries the reachability verdicts:", labels)
+          PY
+          set +e
+          $cli ci $common --fail-on reachable --format sarif --out ci-reach.sarif
+          failing=$?
+          $cli ci $common --fail-on unreachable --format json --out ci-pass.json
+          passing=$?
+          set -e
+          echo "gate on 'reachable' exited with $failing; gate on 'unreachable' exited with $passing"
+          test "$failing" = "1" || { echo "expected the gate on 'reachable' to fail (exit 1)"; exit 1; }
+          test "$passing" = "0" || { echo "expected the gate on 'unreachable' to pass (exit 0)"; exit 1; }
+          python3 - <<'PY'
+          import json
+          sarif = json.load(open("ci-reach.sarif", encoding="utf-8"))
+          props = {r["ruleId"]: r["properties"].get("reachability") for r in sarif["runs"][0]["results"]}
+          assert props["DEPRISK-EXAMPLE-0001"] == "reachable", props
+          print("SARIF carries the reachability property:", props)
+          PY

@@ -41,35 +41,7 @@ public sealed class ReachCommandTests : IDisposable
         }
     }
 
-    private const string CannedResult = """
-        {"schemaVersion":1,"analyzer":{"name":"deprisk-reach","version":"9.9.9"},"language":"csharp","sourceDigest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-         "stats":{"files":3,"filesSkipped":0,"filesWithErrors":0,"types":2,"methods":5,"edges":4,"entrypoints":1,"reflectionSites":0},
-         "entrypoints":[],"results":[
-           {"key":"DEPRISK-EXAMPLE-0001|Newtonsoft.Json","label":"reachable","reason":"static-path","symbol":"Newtonsoft.Json.JsonConvert.DeserializeObject",
-            "path":[{"from":"Sample.Program.Main","to":"Sample.Program.Load","kind":"static","file":"Program.cs","line":9},
-                    {"from":"Sample.Program.Load","to":"Newtonsoft.Json.JsonConvert.DeserializeObject","kind":"static","file":"Program.cs","line":14}]},
-           {"key":"DEPRISK-EXAMPLE-0002|Example.Lib","label":"unreachable","reason":"no-path","symbol":null,"path":[]}
-         ],"diagnostics":[]}
-        """;
-
-    /// <summary>An executable that prints <paramref name="json"/>, whatever it is given.</summary>
-    private string FakeAnalyzer(string json = CannedResult, int exitCode = 0)
-    {
-        string canned = Path.Combine(_root, "canned.json");
-        File.WriteAllText(canned, json);
-
-        if (OperatingSystem.IsWindows())
-        {
-            string cmd = Path.Combine(_root, "fake-analyzer.cmd");
-            File.WriteAllText(cmd, $"@echo off\r\ntype \"{canned}\"\r\nexit /b {exitCode}\r\n");
-            return cmd;
-        }
-
-        string script = Path.Combine(_root, "fake-analyzer.sh");
-        File.WriteAllText(script, $"#!/bin/sh\ncat \"{canned}\"\nexit {exitCode}\n");
-        File.SetUnixFileMode(script, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-        return script;
-    }
+    private string FakeAnalyzer(string json = FakeAnalyzerScript.Canned, int exitCode = 0) => FakeAnalyzerScript.Create(_root, json, exitCode);
 
     private (int Code, string Out, string Err) Run(params string[] args)
     {

@@ -176,7 +176,7 @@ Commands marked *(planned)* do not exist yet; the table in [Feature status](#fea
 | `deprisk init [path]` | Create `.deprisk/` with a signing key and start the signed audit log. Never overwrites anything. |
 | `deprisk scan [path]` | Read the resolved dependency graph: NuGet (`project.assets.json`, written by `dotnet restore`) or npm (`package-lock.json`, lockfileVersion 2 and 3). `--ecosystem auto\|nuget\|npm` (default: detect; a tree with both is an error that asks you to choose), `--format table\|json`, `--out`. Offline and deterministic. |
 | `deprisk match [path]` | Match the resolved dependencies against local OSV advisories: `--advisories <dir\|.zip\|.json>` (required), `--ecosystem`, `--format table\|json`, `--out`, `--strict`. Offline; matching is by version only. |
-| `deprisk rank [path]` | Like `match`, ordered by the baseline method: CISA KEV, then EPSS, then CVSS v3 base score. `--advisories <...>` (required), `--epss <csv[.gz]>`, `--kev <json>`, `--ecosystem`, `--format table\|json`, `--out`, `--strict`. Offline; the reference (B2) for the later model. |
+| `deprisk rank [path]` | Like `match`, ordered by the baseline method: CISA KEV, then EPSS, then CVSS v3 base score. `--advisories <...>` (required), `--epss <csv[.gz]>`, `--kev <json>`, `--ecosystem`, `--format table\|json\|sarif`, `--out`, `--strict`; optionally `--symbols <file\|dir>` (with `--source`, `--analyzer`, `--entrypoints`, `--entrypoint`, `--timeout`) adds a reachability verdict to each finding without changing the order. Offline; the reference (B2) for the later model. |
 | `deprisk graph [path]` | The dependency hypergraph of the resolved graph: nodes, hyperedges (one per package version that requires something, plus a project hyperedge), every requirement checked against the resolved version (violated and undecided ones are listed), statistics. NuGet and npm (for npm, requirements are resolved the way Node does it and ranges are node-semver). `--ecosystem`, `--format table\|json\|dot`, `--out`. Offline. |
 | `deprisk reach [path]` | For every advisory that applies, can the vulnerable code be reached from your application (C#)? `--advisories <...>` and `--symbols <file\|dir>` (required; see [docs/symbol-maps.md](docs/symbol-maps.md)), `--source <dir>`, `--entrypoints auto\|public-api\|none`, `--entrypoint <Ns.Type.Method>`, `--analyzer <file>` (or `DEPRISK_REACH`; build it from `analyzers/reach`, it is not in the NuGet package yet), `--timeout`, `--format table\|json`, `--out`. Offline. |
 | `deprisk rank` *(planned: risk distributions)* | Compute risk distributions and rank findings. Today `rank` is the baseline ordering described above. |
@@ -188,7 +188,7 @@ Commands marked *(planned)* do not exist yet; the table in [Feature status](#fea
 | `deprisk audit verify [path]` | Verify the integrity of the audit log (`--pubkey <file>`, `--head <hash>`). |
 | `deprisk bundle create\|import\|verify` *(planned)* | Build or load signed offline data bundles. |
 | `deprisk bench` *(planned)* | Run the reproducible benchmark suite. |
-| `deprisk ci [path]` | One-shot CI mode: like `rank`, plus a policy gate. `--fail-on <expression>` (see below) makes it exit with code 1 when a finding matches; `--format table\|json\|sarif`, `--out`. The verdict is printed on standard error so json and sarif on standard output stay clean. |
+| `deprisk ci [path]` | One-shot CI mode: like `rank`, plus a policy gate. `--fail-on <expression>` (see below) makes it exit with code 1 when a finding matches; `--format table\|json\|sarif`, `--out`; optionally `--symbols <file\|dir>` with `--source`, `--analyzer`, `--entrypoints`, `--entrypoint`, `--timeout` (as for `reach`) to add reachability and use it in the gate. The verdict is printed on standard error so json and sarif on standard output stay clean. |
 | `deprisk doctor` | Diagnose the installation. |
 
 ### Examples (planned commands)
@@ -431,8 +431,13 @@ Clauses separated by `,` (any clause may fail the gate); each clause is terms jo
 | `cvss>=N`, `cvss>N` | the CVSS v3 base score (0 to 10) compares so |
 | `epss>=P`, `epss>P` | the EPSS probability (0 to 1) compares so |
 | `severity>=LEVEL` | the database rating is at least `low`, `moderate` (or `medium`), `high`, `critical` |
+| `reachable` | the reachability verdict is `reachable` (needs `--symbols`) |
+| `possibly-reachable` | the verdict is `possibly-reachable` (needs `--symbols`) |
+| `reach-unknown` | the verdict is `unknown` (needs `--symbols`) |
+| `unreachable` | the verdict is `unreachable` (needs `--symbols`) |
+| `not-unreachable` | the verdict is anything but `unreachable`: `reachable`, `possibly-reachable`, or `unknown`. The safe way to gate: only what is *proven* unreachable is let through (needs `--symbols`) |
 
-A term about a signal that is not available for a finding is false for it (never "zero"). Examples: `kev` · `kev&fixable,cvss>=9` · `direct&severity>=high`. Reachability terms (`reachable`, probability quantiles) do not exist yet and are rejected with an error, not ignored.
+A term about a signal that is not available for a finding is false for it (never "zero"). Examples: `kev` · `kev&fixable,cvss>=9` · `direct&severity>=high`. The reachability terms need `--symbols` (and the analyzer); without it the command stops with an input error instead of letting them silently match nothing, and a finding that was not analyzed matches none of them. Probability quantiles do not exist yet and are rejected with an error, not ignored. Reachability never changes the order of `rank`; it is shown and can be used in the gate. A typical gate: `kev&fixable,cvss>=9&not-unreachable`.
 
 ### SARIF levels
 
@@ -593,7 +598,7 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 | Model | Hypergraph with candidate versions and allowed tuples (for the optimizer) | 🗺️ |
 | Analysis | Reachability: C# analyzer (`analyzers/reach`: standalone process with a JSON protocol, conservative call graph, labels reachable / possibly-reachable / unreachable / unknown; build from source; not yet wired into the CLI) | 🚧 |
 | Analysis | `deprisk reach` with symbol maps ([format](docs/symbol-maps.md)); needs the analyzer built from source | 🚧 |
-| Analysis | Reachability labels in `rank` and in the `ci` policy gate | 🗺️ |
+| Analysis | Reachability labels in `rank` and `ci` output (JSON, table, SARIF property) with `--symbols`; shown, not used for the order | 🚧 |
 | Analysis | Reachability: JS/TS | 🗺️ |
 | Analysis | Symbol mining from fix commits | 🗺️ |
 | Risk | Monte Carlo risk distributions | 🗺️ |
@@ -605,7 +610,7 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 | Output | SARIF 2.1.0 and JSON for ranked findings (`rank`, `ci`) | ✅ |
 | Output | OpenVEX | 🗺️ |
 | CI | `deprisk ci` + policy gate (`kev`, `ransomware`, `direct`, `fixable`, `cvss`, `epss`, `severity`) | ✅ |
-| CI | Reachability terms in the policy gate | 🗺️ |
+| CI | Reachability terms in the policy gate (`reachable`, `possibly-reachable`, `reach-unknown`, `unreachable`, `not-unreachable`); needs the analyzer built from source | 🚧 |
 | CI | GitHub Action wrapper | 🗺️ |
 | Explain | Deterministic evidence report | 🗺️ |
 | Explain | Optional local-LLM narrative | 🗺️ |

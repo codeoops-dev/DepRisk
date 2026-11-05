@@ -16,7 +16,8 @@
     "projectsScanned",
     "packagesScanned",
     "packagesSkipped",
-    "findings"
+    "findings",
+    "reach"
   ],
   "properties": {
     "schemaVersion": {
@@ -152,6 +153,155 @@
       "items": {
         "$ref": "#/$defs/rankedFinding"
       }
+    },
+    "reach": {
+      "description": "How the reachability verdicts were made. Null when no symbol maps were supplied.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "analyzer",
+        "symbolMaps",
+        "source",
+        "summary"
+      ],
+      "properties": {
+        "analyzer": {
+          "description": "Null when no analysis ran: nothing had a symbol list, or the ecosystem has no analyzer.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "version",
+            "sha256"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "sha256": {
+              "description": "SHA-256 of the analyzer executable.",
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        },
+        "symbolMaps": {
+          "description": "The symbol lists the verdicts were computed with.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "digest",
+            "files",
+            "entries"
+          ],
+          "properties": {
+            "source": {
+              "description": "File or directory name only, never a full path.",
+              "type": "string",
+              "minLength": 1
+            },
+            "digest": {
+              "description": "SHA-256 over the digests of the symbol map files.",
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "entries": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "source": {
+          "description": "What the analyzer read. Null when no analysis ran.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "sourceDigest",
+            "files",
+            "filesSkipped",
+            "filesWithErrors",
+            "methods",
+            "edges",
+            "entrypoints"
+          ],
+          "properties": {
+            "sourceDigest": {
+              "description": "SHA-256 over '<sha256 of file>  <relative path>' lines of every source file that was read.",
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "filesSkipped": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "filesWithErrors": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "methods": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "edges": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "entrypoints": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reachable",
+            "possiblyReachable",
+            "unreachable",
+            "unknown"
+          ],
+          "properties": {
+            "reachable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "possiblyReachable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unreachable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unknown": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
     }
   },
   "$defs": {
@@ -214,7 +364,8 @@
         "package",
         "fixedVersions",
         "locations",
-        "signals"
+        "signals",
+        "reachability"
       ],
       "properties": {
         "rank": {
@@ -415,6 +566,50 @@
                     }
                   }
                 }
+              ]
+            }
+          }
+        },
+        "reachability": {
+          "description": "The reachability verdict (see 'deprisk reach' for the path). Null when no symbol maps were supplied: not analyzed, never 'unreachable'. Does not affect rank.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "reason",
+            "symbol"
+          ],
+          "properties": {
+            "label": {
+              "enum": [
+                "reachable",
+                "possibly-reachable",
+                "unreachable",
+                "unknown"
+              ]
+            },
+            "reason": {
+              "enum": [
+                "static-path",
+                "dynamic-path",
+                "no-path",
+                "no-symbols",
+                "no-entrypoints",
+                "symbol-list-incomplete",
+                "incomplete-analysis",
+                "unresolved-reflection",
+                "unresolved-receiver",
+                "transitive-package-code-not-analyzed",
+                "no-analyzer-for-ecosystem"
+              ]
+            },
+            "symbol": {
+              "type": [
+                "string",
+                "null"
               ]
             }
           }

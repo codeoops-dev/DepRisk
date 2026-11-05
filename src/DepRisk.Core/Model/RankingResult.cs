@@ -9,7 +9,13 @@ public sealed record KevSignal(string Cve, string? DateAdded, bool KnownRansomwa
 /// <summary>The exploitation and severity signals available for one finding. Null means "not available", never "zero".</summary>
 public sealed record FindingSignals(CvssSignal? Cvss, EpssSignal? Epss, KevSignal? Kev);
 
-/// <summary>A finding with its position in the baseline ranking (1 = most urgent).</summary>
+/// <summary>
+/// The reachability verdict of a finding, as shown in the ranking (<c>deprisk reach</c> has the path). Present only when symbol maps
+/// were supplied (<c>--symbols</c>); null means "not analyzed", never "unreachable".
+/// </summary>
+public sealed record FindingReach(string Label, string Reason, string? Symbol);
+
+/// <summary>A finding with its position in the baseline ranking (1 = most urgent). Reachability does not change the position.</summary>
 public sealed record RankedFinding(
     int Rank,
     string Id,
@@ -19,12 +25,20 @@ public sealed record RankedFinding(
     FindingPackage Package,
     IReadOnlyList<string> FixedVersions,
     IReadOnlyList<FindingLocation> Locations,
-    FindingSignals Signals);
+    FindingSignals Signals,
+    FindingReach? Reachability = null);
 
 /// <summary>Provenance of an EPSS or KEV data set. Dates are those published inside the data, never the current time.</summary>
 public sealed record SignalSourceInfo(string Source, string Digest, string? Version, string? Date, int Entries, int Skipped);
 
 public sealed record SignalSources(SignalSourceInfo? Epss, SignalSourceInfo? Kev);
+
+/// <summary>How the reachability verdicts of a ranking were made: the analyzer, the symbol maps, what it read, and the totals.</summary>
+public sealed record RankReachInfo(
+    ReachAnalyzerInfo? Analyzer,
+    SymbolMapInfo SymbolMaps,
+    ReachSourceInfo? Source,
+    ReachSummary Summary);
 
 /// <summary>
 /// Result of <c>deprisk rank</c>. Public contract: schemas/ranking.v1.schema.json.
@@ -41,7 +55,8 @@ public sealed record RankingResult(
     int ProjectsScanned,
     int PackagesScanned,
     int PackagesSkipped,
-    IReadOnlyList<RankedFinding> Findings)
+    IReadOnlyList<RankedFinding> Findings,
+    RankReachInfo? Reach = null)
 {
     public const int CurrentSchemaVersion = 1;
 

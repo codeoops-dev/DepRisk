@@ -19,13 +19,15 @@ public static class RankingService
         string? kevPath,
         ToolInfo tool,
         bool strict,
-        Ecosystem? ecosystem = null)
+        Ecosystem? ecosystem = null,
+        FindingsOutcome? matched = null)
     {
         ArgumentNullException.ThrowIfNull(scanPath);
         ArgumentNullException.ThrowIfNull(advisoriesPath);
         ArgumentNullException.ThrowIfNull(tool);
 
-        FindingsOutcome findings = FindingsService.Match(scanPath, advisoriesPath, tool, strict, ecosystem);
+        // The findings may already have been computed (for example by the reach analysis, which matches first).
+        FindingsOutcome findings = matched ?? FindingsService.Match(scanPath, advisoriesPath, tool, strict, ecosystem);
         EpssData? epss = epssPath is null ? null : EpssLoader.Load(epssPath);
         KevData? kev = kevPath is null ? null : KevLoader.Load(kevPath);
 
@@ -48,6 +50,32 @@ public static class RankingService
             findings.InputsDigest + "\n" + (epss?.Digest ?? "-") + "\n" + (kev?.Digest ?? "-") + "\n");
 
         return new RankingOutcome(result, inputsDigest, findings, epss, kev);
+    }
+
+    /// <summary>
+    /// Adds the reachability verdicts to a ranking. The order and the ranks do not change: reachability is information here
+    /// (and for the policy gate); it is not part of the baseline method. A finding without a verdict stays "not analyzed".
+    /// </summary>
+    public static RankingResult WithReachability(RankingResult ranking, ReachabilityResult reach)
+    {
+        ArgumentNullException.ThrowIfNull(ranking);
+        ArgumentNullException.ThrowIfNull(reach);
+
+        Dictionary<(string, string, string), ReachVerdict> verdicts = new();
+
+        foreach (ReachFinding item in reach.Findings)
+        {
+            Finding f = item.Finding;
+            verdicts[(f.Id.ToUpperInvariant(), f.Package.Id.ToUpperInvariant(), f.Package.Version)] = item.Reachability;
+        }
+
+        List<RankedFinding> withReach = ranking.Findings
+            .Select(r => verdicts.TryGetValue((r.Id.ToUpperInvariant(), r.Package.Id.ToUpperInvariant(), r.Package.Version), out ReachVerdict? v)
+                ? r with { Reachability = new FindingReach(v.Label, v.Reason, v.Symbol) }
+                : r)
+            .ToList();
+
+        return ranking with { Findings = withReach, Reach = new RankReachInfo(reach.Analyzer, reach.SymbolMaps, reach.Source, reach.Summary) };
     }
 
     /// <summary>Pure ranking of an already-computed findings result.</summary>

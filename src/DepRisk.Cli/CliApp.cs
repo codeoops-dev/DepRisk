@@ -121,6 +121,7 @@ internal static class CliApp
         output.WriteLine("  rank [path]   Like match, ordered by CISA KEV, EPSS, and CVSS (baseline; offline)");
         output.WriteLine("                  --advisories <...> (required)  --epss <csv[.gz]>  --kev <json>");
         output.WriteLine("                  --format table|json|sarif  --out <file>  --strict  --ecosystem auto|nuget|npm");
+        output.WriteLine("                  --symbols <file|dir> (adds reachability; also --source --analyzer --entrypoints --entrypoint --timeout)");
         output.WriteLine("  ci [path]     Like rank, plus a policy gate: exit code 1 if a finding matches --fail-on");
         output.WriteLine("                  --fail-on \"kev&fixable,cvss>=9\"  (terms: any kev ransomware direct fixable cvss>=N epss>=P severity>=LEVEL)");
         output.WriteLine("                  --format table|json|sarif  --out <file>  (verdict is printed on standard error)");

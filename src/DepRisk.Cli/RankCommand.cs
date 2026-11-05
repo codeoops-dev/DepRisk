@@ -6,6 +6,7 @@ using DepRisk.Core.Cvss;
 using DepRisk.Core.Model;
 using DepRisk.Core.Policy;
 using DepRisk.Data;
+using DepRisk.Data.Reach;
 using DepRisk.Data.Sarif;
 
 namespace DepRisk.Cli;
@@ -36,10 +37,16 @@ internal static class RankCommand
         string? outFile = null;
         bool strict = false;
         bool pathSet = false;
+        ReachArgs reach = new();
 
         for (int i = 0; i < args.Length; i++)
         {
             string arg = args[i];
+
+            if (reach.TryRead(args, ref i, arg))
+            {
+                continue;
+            }
 
             if (arg is "--advisories" or "-a")
             {
@@ -140,14 +147,45 @@ internal static class RankCommand
             }
         }
 
-        RankingOutcome outcome = RankingService.Rank(
-            Path.GetFullPath(path, context.WorkingDirectory),
-            Path.GetFullPath(advisories, context.WorkingDirectory),
-            epss is null ? null : Path.GetFullPath(epss, context.WorkingDirectory),
-            kev is null ? null : Path.GetFullPath(kev, context.WorkingDirectory),
-            new ToolInfo(ProductInfo.CommandName, VersionInfo.Current),
-            strict,
-            ecosystem);
+        reach.Validate(commandName, symbolsRequired: false);
+
+        if (policy is { UsesReachability: true } && reach.Symbols is null)
+        {
+            throw new InvalidInputException(
+                "--fail-on uses reachability terms (reachable, possibly-reachable, reach-unknown, unreachable, not-unreachable), "
+                + "which need --symbols (and the analyzer): without a verdict they would silently match nothing.");
+        }
+
+        string scanPath = Path.GetFullPath(path, context.WorkingDirectory);
+        string advisoriesPath = Path.GetFullPath(advisories, context.WorkingDirectory);
+        string? epssPath = epss is null ? null : Path.GetFullPath(epss, context.WorkingDirectory);
+        string? kevPath = kev is null ? null : Path.GetFullPath(kev, context.WorkingDirectory);
+        ToolInfo tool = new(ProductInfo.CommandName, VersionInfo.Current);
+
+        RankingOutcome outcome;
+
+        if (reach.Symbols is null)
+        {
+            outcome = RankingService.Rank(scanPath, advisoriesPath, epssPath, kevPath, tool, strict, ecosystem);
+        }
+        else
+        {
+            // Reachability is computed first (it matches the advisories itself); the ranking reuses those findings.
+            ReachOutcome reached = ReachService.Run(
+                reach.ToOptions(scanPath, advisoriesPath, ecosystem, strict, context),
+                tool,
+                new AnalyzerProcess(),
+                Environment.GetEnvironmentVariable,
+                AppContext.BaseDirectory);
+
+            RankingOutcome ranked = RankingService.Rank(scanPath, advisoriesPath, epssPath, kevPath, tool, strict, ecosystem, reached.Findings);
+
+            outcome = ranked with
+            {
+                Result = RankingService.WithReachability(ranked.Result, reached.Result),
+                InputsDigest = Digest.Sha256Hex(ranked.InputsDigest + "\n" + reached.InputsDigest + "\n"),
+            };
+        }
 
         string json = RankingResultJson.Serialize(outcome.Result);
         string text = format switch
@@ -221,7 +259,8 @@ internal static class RankCommand
 
         foreach (RankedFinding finding in tripped.Take(10))
         {
-            error.Write($"  #{finding.Rank} {TerminalText.Safe(finding.Id, 60)}  {TerminalText.Safe(finding.Package.Id, 80)} {finding.Package.Version}\n");
+            string reachText = finding.Reachability is null ? string.Empty : $"  [reach: {finding.Reachability.Label}]";
+            error.Write($"  #{finding.Rank} {TerminalText.Safe(finding.Id, 60)}  {TerminalText.Safe(finding.Package.Id, 80)} {finding.Package.Version}{reachText}\n");
         }
 
         if (tripped.Count > 10)
@@ -254,7 +293,18 @@ internal static class RankCommand
         text.Append(DescribeSignal("EPSS", result.Signals.Epss, "model", "score date", "CVEs"));
         text.Append(DescribeSignal("KEV", result.Signals.Kev, "catalog", "released", "entries"));
         text.Append("method: baseline: in CISA KEV first, then EPSS probability, then CVSS base score, then database severity, then id.\n");
-        text.Append("        No reachability and no uncertainty yet; this is the reference the later model is compared with.\n");
+
+        if (result.Reach is { } reachInfo)
+        {
+            text.Append("        Reachability is shown for each finding and can be used in --fail-on; it does not change the order.\n");
+            text.Append($"reachability: symbol maps {TerminalText.Safe(reachInfo.SymbolMaps.Source, 80)} ({reachInfo.SymbolMaps.Entries} entr{(reachInfo.SymbolMaps.Entries == 1 ? "y" : "ies")}, sha256 {reachInfo.SymbolMaps.Digest[..12]}); ");
+            text.Append(reachInfo.Analyzer is null ? "analyzer not run" : $"analyzer {TerminalText.Safe(reachInfo.Analyzer.Name, 40)} {TerminalText.Safe(reachInfo.Analyzer.Version, 40)} sha256 {reachInfo.Analyzer.Sha256[..12]}");
+            text.Append($"; {reachInfo.Summary.Reachable} reachable, {reachInfo.Summary.PossiblyReachable} possibly reachable, {reachInfo.Summary.Unknown} unknown, {reachInfo.Summary.Unreachable} unreachable\n");
+        }
+        else
+        {
+            text.Append("        No reachability and no uncertainty yet; this is the reference the later model is compared with (add --symbols for reachability).\n");
+        }
 
         if (source.SkippedInvalid > 0)
         {
@@ -299,9 +349,17 @@ internal static class RankCommand
             {
                 text.Append($"      {TerminalText.Safe(finding.Summary, 140)}\n");
             }
+
+            if (finding.Reachability is { } reachVerdict)
+            {
+                string via = reachVerdict.Symbol is null ? string.Empty : $"; via {TerminalText.Safe(reachVerdict.Symbol, 100)}";
+                text.Append($"      reachability: {reachVerdict.Label} ({ReachCommand.Describe(reachVerdict.Reason)}{via})\n");
+            }
         }
 
-        text.Append("\nMatching is by package version only: reachability of the vulnerable code is not considered yet.\n");
+        text.Append(result.Reach is null
+            ? "\nMatching is by package version only: reachability of the vulnerable code is not considered (add --symbols).\n"
+            : "\nMatching is by package version; reachability labels describe a conservative call graph, not exploitability (see 'deprisk reach' for the paths).\n");
         return text.ToString();
     }
 

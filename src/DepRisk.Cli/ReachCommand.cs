@@ -17,20 +17,12 @@ namespace DepRisk.Cli;
 internal static class ReachCommand
 {
     private static readonly string[] SupportedFormats = ["table", "json"];
-    private static readonly string[] EntrypointModes = ["auto", "public-api", "none"];
-    private const int DefaultTimeoutSeconds = 300;
-    private const int MaxTimeoutSeconds = 3600;
 
     public static ExitCode Run(string[] args, TextWriter output, CliContext context)
     {
         string path = ".";
         string? advisories = null;
-        string? symbols = null;
-        string? source = null;
-        string? analyzer = null;
-        string mode = "auto";
-        List<string> explicitEntrypoints = [];
-        int timeoutSeconds = DefaultTimeoutSeconds;
+        ReachArgs reach = new();
         string format = "table";
         Ecosystem? ecosystem = null;
         string? outFile = null;
@@ -41,46 +33,24 @@ internal static class ReachCommand
         {
             string arg = args[i];
 
-            if (TryValue(args, ref i, arg, "--advisories", "-a", out string? value))
+            if (reach.TryRead(args, ref i, arg))
+            {
+                continue;
+            }
+
+            if (ReachArgs.TryValue(args, ref i, arg, "--advisories", "-a", out string? value))
             {
                 advisories = value;
             }
-            else if (TryValue(args, ref i, arg, "--symbols", "-s", out value))
-            {
-                symbols = value;
-            }
-            else if (TryValue(args, ref i, arg, "--source", null, out value))
-            {
-                source = value;
-            }
-            else if (TryValue(args, ref i, arg, "--analyzer", null, out value))
-            {
-                analyzer = value;
-            }
-            else if (TryValue(args, ref i, arg, "--entrypoints", null, out value))
-            {
-                mode = value!;
-            }
-            else if (TryValue(args, ref i, arg, "--entrypoint", null, out value))
-            {
-                explicitEntrypoints.Add(value!);
-            }
-            else if (TryValue(args, ref i, arg, "--timeout", null, out value))
-            {
-                if (!int.TryParse(value, out timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > MaxTimeoutSeconds)
-                {
-                    throw new InvalidInputException($"--timeout must be a whole number of seconds from 1 to {MaxTimeoutSeconds}.");
-                }
-            }
-            else if (TryValue(args, ref i, arg, "--format", "-f", out value))
+            else if (ReachArgs.TryValue(args, ref i, arg, "--format", "-f", out value))
             {
                 format = value!;
             }
-            else if (TryValue(args, ref i, arg, "--out", "-o", out value))
+            else if (ReachArgs.TryValue(args, ref i, arg, "--out", "-o", out value))
             {
                 outFile = value;
             }
-            else if (TryValue(args, ref i, arg, EcosystemOption.Name, null, out value))
+            else if (ReachArgs.TryValue(args, ref i, arg, EcosystemOption.Name, null, out value))
             {
                 ecosystem = EcosystemOption.Parse(value!, "reach");
             }
@@ -108,47 +78,16 @@ internal static class ReachCommand
             throw new InvalidInputException($"format '{format}' is not supported for 'reach' (supported: {string.Join(", ", SupportedFormats)}).");
         }
 
-        if (!EntrypointModes.Contains(mode, StringComparer.Ordinal))
-        {
-            throw new InvalidInputException($"--entrypoints must be one of: {string.Join(", ", EntrypointModes)}.");
-        }
-
-        foreach (string name in explicitEntrypoints)
-        {
-            if (!SymbolSyntax.IsValid(name) || name.EndsWith(".#ctor", StringComparison.Ordinal))
-            {
-                throw new InvalidInputException($"--entrypoint '{SafeText.Clean(name, 80)}' is not a method name (Namespace.Type.Method, or Namespace.Type.* for every member).");
-            }
-        }
-
         if (advisories is null)
         {
             throw new InvalidInputException(
                 "'reach' needs advisory data: pass --advisories <directory | .zip | .json> (OSV format), as for 'match'.");
         }
 
-        if (symbols is null)
-        {
-            throw new InvalidInputException(
-                "'reach' needs symbol maps: pass --symbols <file | directory> (docs/symbol-maps.md). OSV has no symbol data for NuGet, "
-                + "so the symbols through which a flaw is reached must come from a symbol map.");
-        }
-
-        ReachOptions options = new(
-            Path.GetFullPath(path, context.WorkingDirectory),
-            Path.GetFullPath(advisories, context.WorkingDirectory),
-            Path.GetFullPath(symbols, context.WorkingDirectory),
-            source,
-            ecosystem,
-            strict,
-            mode,
-            explicitEntrypoints,
-            analyzer,
-            TimeSpan.FromSeconds(timeoutSeconds),
-            context.WorkingDirectory);
+        reach.Validate("reach", symbolsRequired: true);
 
         ReachOutcome outcome = ReachService.Run(
-            options,
+            reach.ToOptions(Path.GetFullPath(path, context.WorkingDirectory), Path.GetFullPath(advisories, context.WorkingDirectory), ecosystem, strict, context),
             new ToolInfo(ProductInfo.CommandName, VersionInfo.Current),
             new AnalyzerProcess(),
             Environment.GetEnvironmentVariable,
@@ -193,32 +132,7 @@ internal static class ReachCommand
         return ExitCode.Success;
     }
 
-    private static bool TryValue(string[] args, ref int index, string arg, string longName, string? shortName, out string? value)
-    {
-        value = null;
-
-        if (arg == longName || (shortName is not null && arg == shortName))
-        {
-            if (index + 1 >= args.Length)
-            {
-                throw new InvalidInputException($"option '{arg}' needs a value.");
-            }
-
-            index++;
-            value = args[index];
-            return true;
-        }
-
-        if (arg.StartsWith(longName + "=", StringComparison.Ordinal))
-        {
-            value = arg[(longName.Length + 1)..];
-            return true;
-        }
-
-        return false;
-    }
-
-    private static string Describe(string reason) => reason switch
+    internal static string Describe(string reason) => reason switch
     {
         ReachLabels.StaticPath => "a call path exists",
         ReachLabels.DynamicPath => "a path exists only through dynamic edges (dispatch, reflection by name, calls on values of unknown type)",

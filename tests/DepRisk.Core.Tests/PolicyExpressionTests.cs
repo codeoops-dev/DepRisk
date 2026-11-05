@@ -166,8 +166,10 @@ public class PolicyExpressionTests
     [InlineData("severity>=urgent")]
     [InlineData("severity>=none")]
     [InlineData("score>=5")]
-    [InlineData("reachable")]
-    [InlineData("kev&reachable")]
+    [InlineData("reachable>=1")]
+    [InlineData("kev&reachables")]
+    [InlineData("not-reachable")]
+    [InlineData("!unreachable")]
     public void Invalid_policies_are_rejected_with_a_reason(string policy)
     {
         Assert.False(PolicyExpression.TryParse(policy, out PolicyExpression? expression, out string error));
@@ -198,11 +200,61 @@ public class PolicyExpressionTests
         }
     }
 
-    [Fact]
-    public void Reachable_gives_a_helpful_message()
-    {
-        PolicyExpression.TryParse("reachable", out _, out string error);
+    private static RankedFinding WithReach(string? label) =>
+        Finding() with { Reachability = label is null ? null : new FindingReach(label, "test", null) };
 
-        Assert.Contains("not available yet", error);
+    [Theory]
+    [InlineData("reachable", "reachable", true)]
+    [InlineData("reachable", "possibly-reachable", false)]
+    [InlineData("reachable", "unknown", false)]
+    [InlineData("reachable", "unreachable", false)]
+    [InlineData("possibly-reachable", "possibly-reachable", true)]
+    [InlineData("possibly-reachable", "reachable", false)]
+    [InlineData("reach-unknown", "unknown", true)]
+    [InlineData("reach-unknown", "unreachable", false)]
+    [InlineData("unreachable", "unreachable", true)]
+    [InlineData("unreachable", "unknown", false)]
+    [InlineData("not-unreachable", "reachable", true)]
+    [InlineData("not-unreachable", "possibly-reachable", true)]
+    [InlineData("not-unreachable", "unknown", true)]
+    [InlineData("not-unreachable", "unreachable", false)]
+    [InlineData("REACHABLE", "reachable", true)]
+    public void Reachability_terms_match_the_label(string term, string label, bool expected)
+    {
+        Assert.Equal(expected, Parse(term).Matches(WithReach(label)));
+    }
+
+    [Theory]
+    [InlineData("reachable")]
+    [InlineData("possibly-reachable")]
+    [InlineData("reach-unknown")]
+    [InlineData("unreachable")]
+    [InlineData("not-unreachable")]
+    public void A_finding_that_was_not_analyzed_matches_no_reachability_term(string term)
+    {
+        // Not analyzed is not "unreachable" and not "reachable": the term is simply false, like any missing signal.
+        Assert.False(Parse(term).Matches(WithReach(null)));
+    }
+
+    [Fact]
+    public void Reachability_terms_combine_with_the_others_and_are_reported_as_used()
+    {
+        PolicyExpression gate = Parse("kev&not-unreachable,cvss>=9&reachable");
+
+        Assert.True(gate.UsesReachability);
+        Assert.False(Parse("kev&fixable,cvss>=9").UsesReachability);
+        Assert.True(Parse("kev,reachable").UsesReachability);
+        Assert.True(Parse("cvss>=9&direct&unreachable").UsesReachability);
+
+        Assert.True(Parse("cvss>=9&reachable").Matches(Finding(cvss: 9.8) with { Reachability = new FindingReach("reachable", "static-path", "A.B.C") }));
+        Assert.False(Parse("cvss>=9&reachable").Matches(Finding(cvss: 5.0) with { Reachability = new FindingReach("reachable", "static-path", "A.B.C") }));
+    }
+
+    [Fact]
+    public void The_error_for_an_unknown_term_lists_the_reachability_terms()
+    {
+        PolicyExpression.TryParse("bogus", out _, out string error);
+
+        Assert.Contains("not-unreachable", error);
     }
 }

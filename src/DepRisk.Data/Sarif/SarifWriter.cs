@@ -183,6 +183,13 @@ public static class SarifWriter
             properties["cvss"] = cvss.BaseScore;
         }
 
+        // Present only when the run had symbol maps; the labels come from a conservative call graph, not from exploitation.
+        if (finding.Reachability is { } reach)
+        {
+            properties["reachability"] = reach.Label;
+            properties["reachabilityReason"] = reach.Reason;
+        }
+
         return new JsonObject
         {
             ["ruleId"] = finding.Id,

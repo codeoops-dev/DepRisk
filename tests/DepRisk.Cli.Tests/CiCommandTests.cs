@@ -180,13 +180,13 @@ public sealed class CiCommandTests : IDisposable
     public void Invalid_or_unavailable_policy_terms_are_input_errors_and_nothing_is_run()
     {
         (int badCode, string badOutput, string badError) = Ci("--fail-on", "cvss>=11");
-        (int reachableCode, _, string reachableError) = Ci("--fail-on", "reachable");
+        (int unknownCode, _, string unknownError) = Ci("--fail-on", "bogus-term");
 
         Assert.Equal((int)ExitCode.InvalidInput, badCode);
         Assert.Equal(string.Empty, badOutput);
         Assert.Contains("--fail-on", badError);
-        Assert.Equal((int)ExitCode.InvalidInput, reachableCode);
-        Assert.Contains("not available yet", reachableError);
+        Assert.Equal((int)ExitCode.InvalidInput, unknownCode);
+        Assert.Contains("unknown term", unknownError);
         Assert.Equal((int)ExitCode.InvalidInput, Ci("--fail-on").Code);
     }
 
