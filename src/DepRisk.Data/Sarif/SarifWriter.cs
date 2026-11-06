@@ -183,6 +183,13 @@ public static class SarifWriter
             properties["cvss"] = cvss.BaseScore;
         }
 
+        // Present only with the risk model: the distribution's mean and 95th percentile (modeled risk, not real-world loss).
+        if (finding.Risk is { } risk)
+        {
+            properties["riskMean"] = risk.Mean;
+            properties["riskP95"] = risk.P95;
+        }
+
         // Present only when the run had symbol maps; the labels come from a conservative call graph, not from exploitation.
         if (finding.Reachability is { } reach)
         {

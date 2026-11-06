@@ -17,7 +17,8 @@
     "packagesScanned",
     "packagesSkipped",
     "findings",
-    "reach"
+    "reach",
+    "model"
   ],
   "properties": {
     "schemaVersion": {
@@ -48,9 +49,10 @@
       ]
     },
     "method": {
-      "description": "The ranking method. 'baseline-kev-epss-cvss' is the reference (B2) the later model is evaluated against.",
+      "description": "The ranking method. 'baseline-kev-epss-cvss' is the reference (B2) the later model is evaluated against; 'risk-monte-carlo' is the uncertainty model (docs/method.md, section 4).",
       "enum": [
-        "baseline-kev-epss-cvss"
+        "baseline-kev-epss-cvss",
+        "risk-monte-carlo"
       ]
     },
     "ordering": {
@@ -62,7 +64,13 @@
           "epss",
           "cvss",
           "severity",
-          "id"
+          "id",
+          "risk.mean",
+          "risk.p50",
+          "risk.p90",
+          "risk.p95",
+          "risk.cvar95",
+          "baseline-rank"
         ]
       },
       "minItems": 1
@@ -302,6 +310,281 @@
           }
         }
       }
+    },
+    "model": {
+      "description": "How the risk distributions were made. Null with the baseline method. 'calibration' is 'uncalibrated-defaults' for the built-in placeholder parameters (docs/method.md leaves calibration to the benchmark) and 'custom' for a parameters file.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "samples",
+        "seed",
+        "seedSource",
+        "rankBy",
+        "calibration",
+        "parametersDigest",
+        "parameters"
+      ],
+      "properties": {
+        "samples": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 200000
+        },
+        "seed": {
+          "description": "A 64-bit number as a decimal string.",
+          "type": "string",
+          "pattern": "^[0-9]{1,20}$"
+        },
+        "seedSource": {
+          "enum": [
+            "default",
+            "given"
+          ]
+        },
+        "rankBy": {
+          "enum": [
+            "mean",
+            "p50",
+            "p90",
+            "p95",
+            "cvar95"
+          ]
+        },
+        "calibration": {
+          "enum": [
+            "uncalibrated-defaults",
+            "custom"
+          ]
+        },
+        "parametersDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reach",
+            "exploit",
+            "impact"
+          ],
+          "properties": {
+            "reach": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "reachable",
+                "possiblyReachable",
+                "unknown",
+                "unreachable",
+                "notAnalyzed"
+              ],
+              "properties": {
+                "reachable": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "alpha",
+                    "beta",
+                    "mean"
+                  ],
+                  "properties": {
+                    "alpha": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "beta": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "mean": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "possiblyReachable": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "alpha",
+                    "beta",
+                    "mean"
+                  ],
+                  "properties": {
+                    "alpha": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "beta": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "mean": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "unknown": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "alpha",
+                    "beta",
+                    "mean"
+                  ],
+                  "properties": {
+                    "alpha": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "beta": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "mean": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "unreachable": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "alpha",
+                    "beta",
+                    "mean"
+                  ],
+                  "properties": {
+                    "alpha": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "beta": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "mean": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "notAnalyzed": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "alpha",
+                    "beta",
+                    "mean"
+                  ],
+                  "properties": {
+                    "alpha": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "beta": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "mean": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            },
+            "exploit": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "epssConcentration",
+                "noEpss",
+                "kevMean",
+                "ransomwareKevMean",
+                "kevConcentration"
+              ],
+              "properties": {
+                "epssConcentration": {
+                  "type": "number"
+                },
+                "noEpss": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "alpha",
+                    "beta",
+                    "mean"
+                  ],
+                  "properties": {
+                    "alpha": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "beta": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "mean": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "kevMean": {
+                  "type": "number"
+                },
+                "ransomwareKevMean": {
+                  "type": "number"
+                },
+                "kevConcentration": {
+                  "type": "number"
+                }
+              }
+            },
+            "impact": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "low",
+                "high",
+                "lowSeverityFactor",
+                "moderateSeverityFactor",
+                "highSeverityFactor",
+                "criticalSeverityFactor",
+                "unknownSeverityLow",
+                "unknownSeverityHigh"
+              ],
+              "properties": {
+                "low": {
+                  "type": "number"
+                },
+                "high": {
+                  "type": "number"
+                },
+                "lowSeverityFactor": {
+                  "type": "number"
+                },
+                "moderateSeverityFactor": {
+                  "type": "number"
+                },
+                "highSeverityFactor": {
+                  "type": "number"
+                },
+                "criticalSeverityFactor": {
+                  "type": "number"
+                },
+                "unknownSeverityLow": {
+                  "type": "number"
+                },
+                "unknownSeverityHigh": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "$defs": {
@@ -365,7 +648,9 @@
         "fixedVersions",
         "locations",
         "signals",
-        "reachability"
+        "reachability",
+        "risk",
+        "baselineRank"
       ],
       "properties": {
         "rank": {
@@ -613,6 +898,66 @@
               ]
             }
           }
+        },
+        "risk": {
+          "description": "The risk distribution of R = Reach x Exploit x Impact over the Monte Carlo scenarios, rounded to six decimals. Null with the baseline method. Modeled risk, not real-world loss.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "mean",
+            "p50",
+            "p90",
+            "p95",
+            "cvar95",
+            "reachMean",
+            "exploitMean",
+            "impactMean"
+          ],
+          "properties": {
+            "mean": {
+              "type": "number",
+              "minimum": 0
+            },
+            "p50": {
+              "type": "number",
+              "minimum": 0
+            },
+            "p90": {
+              "type": "number",
+              "minimum": 0
+            },
+            "p95": {
+              "type": "number",
+              "minimum": 0
+            },
+            "cvar95": {
+              "type": "number",
+              "minimum": 0
+            },
+            "reachMean": {
+              "type": "number",
+              "minimum": 0
+            },
+            "exploitMean": {
+              "type": "number",
+              "minimum": 0
+            },
+            "impactMean": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
+        "baselineRank": {
+          "description": "The rank the baseline method gives this finding. Null with the baseline method.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
         }
       }
     }

@@ -376,3 +376,28 @@ jobs:
           assert props["DEPRISK-EXAMPLE-0001"] == "reachable", props
           print("SARIF carries the reachability property:", props)
           PY
+
+      # The uncertainty model: schema, determinism, and what the model is supposed to do with reachability.
+      - name: rank --model risk
+        run: |
+          cli="dotnet run --no-build -c Release --project src/DepRisk.Cli --"
+          common="tests/fixtures/reach/assets --source tests/fixtures/reach/csharp --advisories tests/fixtures/reach/osv --symbols tests/fixtures/reach/symbols --analyzer analyzers/reach/target/release/deprisk-reach"
+          $cli rank $common --model risk --format json --out risk-1.json
+          $cli rank $common --model risk --format json --out risk-2.json
+          cmp risk-1.json risk-2.json
+          python3 -m check_jsonschema --schemafile schemas/ranking.v1.schema.json risk-1.json
+          printf '{"schemaVersion": 1, "impact": {"low": 5, "high": 8}}' > risk-params.json
+          python3 -m check_jsonschema --schemafile schemas/risk-params.v1.schema.json risk-params.json
+          $cli rank $common --model risk --risk-params risk-params.json --format json --out risk-custom.json
+          python3 - <<'PY'
+          import json
+          doc = json.load(open("risk-1.json", encoding="utf-8"))
+          custom = json.load(open("risk-custom.json", encoding="utf-8"))
+          assert doc["method"] == "risk-monte-carlo" and doc["model"]["calibration"] == "uncalibrated-defaults", doc["model"]
+          assert custom["model"]["calibration"] == "custom", custom["model"]
+          by_id = {f["id"]: f for f in doc["findings"]}
+          reached, transitive = by_id["DEPRISK-EXAMPLE-0001"], by_id["DEPRISK-EXAMPLE-0002"]
+          assert reached["risk"]["reachMean"] > transitive["risk"]["reachMean"], "a reachable finding must have a higher Reach than an unknown one"
+          assert all(f["risk"]["p50"] <= f["risk"]["p95"] <= f["risk"]["cvar95"] for f in doc["findings"])
+          print("risk model: deterministic, valid, ordered:", [(f["rank"], f["id"], f["risk"]["mean"]) for f in doc["findings"]])
+          PY

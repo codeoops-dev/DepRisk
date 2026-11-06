@@ -4,8 +4,10 @@ using DepRisk.Audit;
 using DepRisk.Core;
 using DepRisk.Core.Cvss;
 using DepRisk.Core.Model;
+using DepRisk.Core.Risk;
 using DepRisk.Core.Policy;
 using DepRisk.Data;
+using DepRisk.Data.Risk;
 using DepRisk.Data.Reach;
 using DepRisk.Data.Sarif;
 
@@ -38,6 +40,12 @@ internal static class RankCommand
         bool strict = false;
         bool pathSet = false;
         ReachArgs reach = new();
+        string model = "baseline";
+        string samplesText = "5000";
+        string? seedText = null;
+        string rankByText = "mean";
+        string? riskParams = null;
+        bool riskOptionGiven = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -45,6 +53,40 @@ internal static class RankCommand
 
             if (reach.TryRead(args, ref i, arg))
             {
+                continue;
+            }
+
+            if (ReachArgs.TryValue(args, ref i, arg, "--model", null, out string? riskValue))
+            {
+                model = riskValue!;
+                continue;
+            }
+
+            if (ReachArgs.TryValue(args, ref i, arg, "--samples", null, out riskValue))
+            {
+                samplesText = riskValue!;
+                riskOptionGiven = true;
+                continue;
+            }
+
+            if (ReachArgs.TryValue(args, ref i, arg, "--seed", null, out riskValue))
+            {
+                seedText = riskValue;
+                riskOptionGiven = true;
+                continue;
+            }
+
+            if (ReachArgs.TryValue(args, ref i, arg, "--rank-by", null, out riskValue))
+            {
+                rankByText = riskValue!;
+                riskOptionGiven = true;
+                continue;
+            }
+
+            if (ReachArgs.TryValue(args, ref i, arg, "--risk-params", null, out riskValue))
+            {
+                riskParams = riskValue;
+                riskOptionGiven = true;
                 continue;
             }
 
@@ -149,6 +191,44 @@ internal static class RankCommand
 
         reach.Validate(commandName, symbolsRequired: false);
 
+        if (model is not ("baseline" or "risk"))
+        {
+            throw new InvalidInputException($"--model must be 'baseline' (the reference ordering) or 'risk' (the uncertainty model), not '{TerminalText.Safe(model, 40)}'.");
+        }
+
+        if (model == "baseline" && riskOptionGiven)
+        {
+            throw new InvalidInputException($"'{commandName}': --samples, --seed, --rank-by, and --risk-params only apply with --model risk.");
+        }
+
+        int samples = 0;
+        ulong? seed = null;
+        string rankBy = "mean";
+        LoadedRiskParameters? loadedRisk = null;
+
+        if (model == "risk")
+        {
+            if (!int.TryParse(samplesText, out samples) || samples < RiskModel.MinSamples || samples > RiskModel.MaxSamples)
+            {
+                throw new InvalidInputException($"--samples must be a whole number from {RiskModel.MinSamples} to {RiskModel.MaxSamples}.");
+            }
+
+            if (seedText is not null)
+            {
+                if (!ulong.TryParse(seedText, out ulong parsedSeed))
+                {
+                    throw new InvalidInputException("--seed must be a whole number from 0 to 18446744073709551615.");
+                }
+
+                seed = parsedSeed;
+            }
+
+            rankBy = RiskRanker.NormalizeStatistic(rankByText)
+                ?? throw new InvalidInputException($"--rank-by must be one of: {string.Join(", ", RiskRanker.Statistics)} (cvar is accepted for cvar95).");
+
+            loadedRisk = riskParams is null ? RiskParametersLoader.Defaults() : RiskParametersLoader.Load(Path.GetFullPath(riskParams, context.WorkingDirectory));
+        }
+
         if (policy is { UsesReachability: true } && reach.Symbols is null)
         {
             throw new InvalidInputException(
@@ -185,6 +265,24 @@ internal static class RankCommand
                 Result = RankingService.WithReachability(ranked.Result, reached.Result),
                 InputsDigest = Digest.Sha256Hex(ranked.InputsDigest + "\n" + reached.InputsDigest + "\n"),
             };
+        }
+
+        if (loadedRisk is not null)
+        {
+            try
+            {
+                outcome = outcome with
+                {
+                    Result = RankingService.WithRiskModel(outcome.Result, loadedRisk, samples, seed, rankBy),
+                    InputsDigest = Digest.Sha256Hex(
+                        $"{outcome.InputsDigest}\nrisk:{loadedRisk.ParametersDigest}|{samples}|{seed?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "default"}|{rankBy}\n"),
+                };
+            }
+            catch (ArgumentException ex)
+            {
+                // The model refuses too much work (findings x samples); say so as an input problem.
+                throw new InvalidInputException(ex.Message, ex);
+            }
         }
 
         string json = RankingResultJson.Serialize(outcome.Result);
@@ -292,11 +390,21 @@ internal static class RankCommand
         text.Append($"advisories: {TerminalText.Safe(source.Source, 80)}  {source.Count} {Ecosystem.FromId(result.Ecosystem).DisplayName} advisories, sha256 {source.Digest[..12]}\n");
         text.Append(DescribeSignal("EPSS", result.Signals.Epss, "model", "score date", "CVEs"));
         text.Append(DescribeSignal("KEV", result.Signals.Kev, "catalog", "released", "entries"));
-        text.Append("method: baseline: in CISA KEV first, then EPSS probability, then CVSS base score, then database severity, then id.\n");
+        if (result.Model is { } riskModel)
+        {
+            text.Append($"method: risk model: R = Reach x Exploit x Impact over {riskModel.Samples} seeded scenarios, ranked by {riskModel.RankBy} (seed {riskModel.Seed}, {riskModel.SeedSource}).\n");
+            text.Append($"        Parameters: {riskModel.Calibration} (digest {riskModel.ParametersDigest[..12]}). The numbers order findings by modeled risk; they are not probabilities of real-world loss.\n");
+        }
+        else
+        {
+            text.Append("method: baseline: in CISA KEV first, then EPSS probability, then CVSS base score, then database severity, then id.\n");
+        }
 
         if (result.Reach is { } reachInfo)
         {
-            text.Append("        Reachability is shown for each finding and can be used in --fail-on; it does not change the order.\n");
+            text.Append(result.Model is null
+                ? "        Reachability is shown for each finding and can be used in --fail-on; it does not change the order.\n"
+                : "        Reachability is an input of the risk model and can also be used in --fail-on.\n");
             text.Append($"reachability: symbol maps {TerminalText.Safe(reachInfo.SymbolMaps.Source, 80)} ({reachInfo.SymbolMaps.Entries} entr{(reachInfo.SymbolMaps.Entries == 1 ? "y" : "ies")}, sha256 {reachInfo.SymbolMaps.Digest[..12]}); ");
             text.Append(reachInfo.Analyzer is null ? "analyzer not run" : $"analyzer {TerminalText.Safe(reachInfo.Analyzer.Name, 40)} {TerminalText.Safe(reachInfo.Analyzer.Version, 40)} sha256 {reachInfo.Analyzer.Sha256[..12]}");
             text.Append($"; {reachInfo.Summary.Reachable} reachable, {reachInfo.Summary.PossiblyReachable} possibly reachable, {reachInfo.Summary.Unknown} unknown, {reachInfo.Summary.Unreachable} unreachable\n");
@@ -348,6 +456,12 @@ internal static class RankCommand
             if (finding.Summary is not null)
             {
                 text.Append($"      {TerminalText.Safe(finding.Summary, 140)}\n");
+            }
+
+            if (finding.Risk is { } risk)
+            {
+                string c(double v) => v.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                text.Append($"      risk: mean {c(risk.Mean)}  p50 {c(risk.P50)}  p95 {c(risk.P95)}  cvar95 {c(risk.Cvar95)}   (reach {c(risk.ReachMean)}, exploit {c(risk.ExploitMean)}, impact {c(risk.ImpactMean)})  baseline #{finding.BaselineRank}\n");
             }
 
             if (finding.Reachability is { } reachVerdict)

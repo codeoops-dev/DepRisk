@@ -1,7 +1,10 @@
 using DepRisk.Core;
 using DepRisk.Core.Model;
 using DepRisk.Core.Ranking;
+using DepRisk.Core.Reach;
+using DepRisk.Core.Risk;
 using DepRisk.Core.Signals;
+using DepRisk.Data.Risk;
 using DepRisk.Data.Signals;
 
 namespace DepRisk.Data;
@@ -77,6 +80,39 @@ public static class RankingService
 
         return ranking with { Findings = withReach, Reach = new RankReachInfo(reach.Analyzer, reach.SymbolMaps, reach.Source, reach.Summary) };
     }
+
+    /// <summary>
+    /// Replaces the baseline order by the order of the risk model (seeded Monte Carlo over Reach x Exploit x Impact). Reachability, if
+    /// present, is an input of the model. Without a seed, one is derived from the parameters and the number of samples only, so that a
+    /// finding's numbers do not change when unrelated findings appear or disappear.
+    /// </summary>
+    public static RankingResult WithRiskModel(RankingResult ranking, LoadedRiskParameters parameters, int samples, ulong? seed, string rankBy)
+    {
+        ArgumentNullException.ThrowIfNull(ranking);
+        ArgumentNullException.ThrowIfNull(parameters);
+
+        ulong effectiveSeed = seed ?? DefaultSeed(parameters.ParametersDigest, samples);
+        IReadOnlyList<RankedFinding> ranked = RiskRanker.Rank(ranking.Findings, parameters.Parameters, effectiveSeed, samples, rankBy);
+
+        return ranking with
+        {
+            Method = RankingResult.RiskMethod,
+            Ordering = [$"risk.{rankBy}", "baseline-rank"],
+            Findings = ranked,
+            Model = new RiskModelInfo(
+                samples,
+                effectiveSeed.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                seed is null ? "default" : "given",
+                rankBy,
+                parameters.Calibration,
+                parameters.ParametersDigest,
+                parameters.Parameters),
+        };
+    }
+
+    /// <summary>The seed used when none is given: a function of the parameters and the sample count, nothing else.</summary>
+    public static ulong DefaultSeed(string parametersDigest, int samples) =>
+        BitConverter.ToUInt64(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"deprisk/risk/v1|{parametersDigest}|{samples}")), 0);
 
     /// <summary>Pure ranking of an already-computed findings result.</summary>
     public static RankingResult Compute(FindingsResult findings, EpssData? epss, KevData? kev, ToolInfo tool)

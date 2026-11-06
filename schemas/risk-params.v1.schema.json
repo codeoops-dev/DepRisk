@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/codeoops-dev/deprisk/schemas/risk-params.v1.schema.json",
+  "title": "DepRisk risk model parameters (v1)",
+  "description": "Optional input of 'deprisk rank --model risk --risk-params': the built-in placeholder parameters with any of their numbers replaced. Every property is optional; unknown properties are rejected (a misspelled parameter must not be silently ignored). See docs/adr/0015-uncertainty-model.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion"
+  ],
+  "$defs": {
+    "beta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "alpha",
+        "beta"
+      ],
+      "properties": {
+        "alpha": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1000000
+        },
+        "beta": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1000000
+        }
+      }
+    }
+  },
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "reach": {
+      "description": "Reach: the probability that the vulnerable code is exercised, a Beta by reachability label.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reachable": {
+          "$ref": "#/$defs/beta"
+        },
+        "possiblyReachable": {
+          "$ref": "#/$defs/beta"
+        },
+        "unknown": {
+          "$ref": "#/$defs/beta"
+        },
+        "unreachable": {
+          "$ref": "#/$defs/beta"
+        },
+        "notAnalyzed": {
+          "$ref": "#/$defs/beta"
+        }
+      }
+    },
+    "exploit": {
+      "description": "Exploit: with an EPSS value p it is Beta(p k, (1 - p) k), k = epssConcentration; without one, noEpss. In KEV its mean is raised to at least kevMean (ransomwareKevMean for known ransomware use) with concentration kevConcentration.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "epssConcentration": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 1000000
+        },
+        "noEpss": {
+          "$ref": "#/$defs/beta"
+        },
+        "kevMean": {
+          "type": "number",
+          "minimum": 0.001,
+          "maximum": 0.999
+        },
+        "ransomwareKevMean": {
+          "type": "number",
+          "minimum": 0.001,
+          "maximum": 0.999
+        },
+        "kevConcentration": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 1000000
+        }
+      }
+    },
+    "impact": {
+      "description": "Impact: Uniform(low, high) times a severity factor: CVSS base score / 10 if known, else a point factor for the database rating, else Uniform(unknownSeverityLow, unknownSeverityHigh).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "low": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "high": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "lowSeverityFactor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "moderateSeverityFactor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "highSeverityFactor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "criticalSeverityFactor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "unknownSeverityLow": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "unknownSeverityHigh": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  }
+}

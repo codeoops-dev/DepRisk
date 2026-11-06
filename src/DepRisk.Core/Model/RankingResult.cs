@@ -15,7 +15,21 @@ public sealed record FindingSignals(CvssSignal? Cvss, EpssSignal? Epss, KevSigna
 /// </summary>
 public sealed record FindingReach(string Label, string Reason, string? Symbol);
 
-/// <summary>A finding with its position in the baseline ranking (1 = most urgent). Reachability does not change the position.</summary>
+/// <summary>The risk distribution of a finding under the uncertainty model (docs/method.md, section 4): R = Reach x Exploit x Impact over Monte Carlo scenarios.</summary>
+public sealed record FindingRisk(
+    double Mean,
+    double P50,
+    double P90,
+    double P95,
+    double Cvar95,
+    double ReachMean,
+    double ExploitMean,
+    double ImpactMean);
+
+/// <summary>
+/// A finding with its position (1 = most urgent). In the baseline method reachability does not change the position; with the risk
+/// model the position follows <c>Risk</c> and <c>BaselineRank</c> keeps the position the baseline would have given.
+/// </summary>
 public sealed record RankedFinding(
     int Rank,
     string Id,
@@ -26,7 +40,9 @@ public sealed record RankedFinding(
     IReadOnlyList<string> FixedVersions,
     IReadOnlyList<FindingLocation> Locations,
     FindingSignals Signals,
-    FindingReach? Reachability = null);
+    FindingReach? Reachability = null,
+    FindingRisk? Risk = null,
+    int? BaselineRank = null);
 
 /// <summary>Provenance of an EPSS or KEV data set. Dates are those published inside the data, never the current time.</summary>
 public sealed record SignalSourceInfo(string Source, string Digest, string? Version, string? Date, int Entries, int Skipped);
@@ -39,6 +55,20 @@ public sealed record RankReachInfo(
     SymbolMapInfo SymbolMaps,
     ReachSourceInfo? Source,
     ReachSummary Summary);
+
+/// <summary>
+/// How the risk distributions were made. <c>Seed</c> is a decimal string (a 64-bit number does not survive JSON consumers that read
+/// numbers as doubles). <c>Calibration</c> is "uncalibrated-defaults" for the built-in placeholder parameters, "custom" for a
+/// parameters file; neither is a claim about real-world loss.
+/// </summary>
+public sealed record RiskModelInfo(
+    int Samples,
+    string Seed,
+    string SeedSource,
+    string RankBy,
+    string Calibration,
+    string ParametersDigest,
+    DepRisk.Core.Risk.RiskParameters Parameters);
 
 /// <summary>
 /// Result of <c>deprisk rank</c>. Public contract: schemas/ranking.v1.schema.json.
@@ -56,7 +86,8 @@ public sealed record RankingResult(
     int PackagesScanned,
     int PackagesSkipped,
     IReadOnlyList<RankedFinding> Findings,
-    RankReachInfo? Reach = null)
+    RankReachInfo? Reach = null,
+    RiskModelInfo? Model = null)
 {
     public const int CurrentSchemaVersion = 1;
 
@@ -64,4 +95,7 @@ public sealed record RankingResult(
     public const string BaselineMethod = "baseline-kev-epss-cvss";
 
     public static readonly string[] BaselineOrdering = ["kev", "epss", "cvss", "severity", "id"];
+
+    /// <summary>Name of the uncertainty-aware method: seeded Monte Carlo over Reach x Exploit x Impact.</summary>
+    public const string RiskMethod = "risk-monte-carlo";
 }

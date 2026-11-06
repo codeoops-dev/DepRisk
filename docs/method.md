@@ -74,6 +74,8 @@ Independence between `Reach_a`, `Exploit_a`, and `Impact_a` is assumed within an
 
 **Scenarios.** Draw `S` independent samples (seeded; same seed gives the same result) of `(Reach_a^s, Exploit_a^s, Impact_a^s)` for all `a`, giving `R_a^s`. Reported quantiles (p50, p95) per advisory are empirical quantiles over scenarios.
 
+**Implementation status.** `deprisk rank --model risk` implements this section with placeholder parameters (ADR 0015): `Reach` as a Beta by reachability label (reachable, possibly-reachable, unknown, not analyzed, unreachable), `Exploit` as Beta(p k, (1-p) k) around EPSS with a KEV shift, `Impact` as a uniform range times a severity factor, independent factors, seeded scenarios, empirical quantiles (nearest rank) and CVaR, one random stream per finding. The numbers are explicitly marked `uncalibrated-defaults`; calibration on labeled cases and the correlated sampling model remain open.
+
 ## 5. Effort and cost model
 
 For package `p` moving from current version `v0` to `v`:

@@ -102,7 +102,6 @@ Advisory data (OSV dumps), EPSS scores, and the CISA KEV list are files you down
 Planned (not in any release yet; see [Feature status](#feature-status)):
 
 ```bash
-deprisk rank                      # risk distribution per finding (uncertainty model)
 
 # Get a provably consistent fix plan within 6 engineer-hours
 deprisk plan --budget 6h --out plan.json
@@ -179,7 +178,7 @@ Commands marked *(planned)* do not exist yet; the table in [Feature status](#fea
 | `deprisk rank [path]` | Like `match`, ordered by the baseline method: CISA KEV, then EPSS, then CVSS v3 base score. `--advisories <...>` (required), `--epss <csv[.gz]>`, `--kev <json>`, `--ecosystem`, `--format table\|json\|sarif`, `--out`, `--strict`; optionally `--symbols <file\|dir>` (with `--source`, `--analyzer`, `--entrypoints`, `--entrypoint`, `--timeout`) adds a reachability verdict to each finding without changing the order. Offline; the reference (B2) for the later model. |
 | `deprisk graph [path]` | The dependency hypergraph of the resolved graph: nodes, hyperedges (one per package version that requires something, plus a project hyperedge), every requirement checked against the resolved version (violated and undecided ones are listed), statistics. NuGet and npm (for npm, requirements are resolved the way Node does it and ranges are node-semver). `--ecosystem`, `--format table\|json\|dot`, `--out`. Offline. |
 | `deprisk reach [path]` | For every advisory that applies, can the vulnerable code be reached from your application (C#)? `--advisories <...>` and `--symbols <file\|dir>` (required; see [docs/symbol-maps.md](docs/symbol-maps.md)), `--source <dir>`, `--entrypoints auto\|public-api\|none`, `--entrypoint <Ns.Type.Method>`, `--analyzer <file>` (or `DEPRISK_REACH`; build it from `analyzers/reach`, it is not in the NuGet package yet), `--timeout`, `--format table\|json`, `--out`. Offline. |
-| `deprisk rank` *(planned: risk distributions)* | Compute risk distributions and rank findings. Today `rank` is the baseline ordering described above. |
+| `deprisk rank --model risk` | Risk distributions by seeded Monte Carlo (`R = Reach x Exploit x Impact`): per finding mean, p50, p90, p95, cvar95, and the baseline rank for comparison. `--samples`, `--seed`, `--rank-by mean\|p50\|p90\|p95\|cvar95`, `--risk-params <file>`. Uses reachability when `--symbols` is given. The built-in parameters are **uncalibrated placeholders** and say so in every result (ADR 0015). |
 | `deprisk plan` *(planned)* | Compute an optimal remediation plan under budget and constraints. |
 | `deprisk verify <plan>` *(planned)* | Check a plan with the formally verified kernel. |
 | `deprisk apply <plan>` *(planned)* | Apply a verified plan (manifest edits, branch, optional PR). |
@@ -601,7 +600,7 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 | Analysis | Reachability labels in `rank` and `ci` output (JSON, table, SARIF property) with `--symbols`; shown, not used for the order | 🚧 |
 | Analysis | Reachability: JS/TS | 🗺️ |
 | Analysis | Symbol mining from fix commits | 🗺️ |
-| Risk | Monte Carlo risk distributions | 🗺️ |
+| Risk | Uncertainty model: `rank --model risk` gives each finding a risk distribution (seeded Monte Carlo over Reach x Exploit x Impact; mean, p50, p90, p95, cvar95) next to its baseline rank. The parameters are **uncalibrated placeholders** (shown in every result); calibration on labeled cases is still to do | 🚧 |
 | Plan | MILP optimizer with CVaR | 🗺️ |
 | Verify | SPARK kernel (P1–P6) | 🗺️ |
 | Audit | Hash-chained signed log, `init`, `audit verify` (head pinning included) | ✅ |
