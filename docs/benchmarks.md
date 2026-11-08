@@ -38,6 +38,25 @@ deprisk bench --cases benchmarks/datasets/<name>/manifest.json [--split dev|test
 
 `--split` defaults to `dev`. The model options are those of `rank --model risk`; `--bootstrap` is the number of resamples (default 1000, 0 switches intervals off). Same inputs and same seeds give the same bytes.
 
+## Calibrating the Reach factor
+
+```
+deprisk bench calibrate --cases <manifest.json> --out <risk-params.json>
+              [--prior uniform|current] [--min-count <n>] [--risk-params <file>] [--analyzer <file>] [--timeout <s>] [--strict]
+```
+
+Fits the Reach factor of the risk model on the `dev` split (ADR 0018): for each reachability label, a Beta posterior of the rate at which code with that label is truly reachable, from the findings that have a `reachable` truth. `--prior uniform` (the default) starts from Beta(1, 1); `--prior current` starts from the parameters the fit begins with (the defaults, or `--risk-params`). A label with fewer than `--min-count` (default 20) known-truth findings keeps its parameter. If no label reaches the minimum, nothing is written (exit 4).
+
+The output is a complete parameters file with a `provenance` note. Judge it on held-out data, never on the data it was fitted on:
+
+```
+deprisk bench calibrate --cases manifest.json --out fitted.json
+deprisk bench --cases manifest.json --split test --risk-params fitted.json
+deprisk rank --model risk --risk-params fitted.json ...
+```
+
+Compare the `test` result with the one made with the default parameters (`deprisk bench ... --split test`): the reliability tables, the Brier score of the `reach-model`, and the paired differences show whether the fit helped. Exploit and Impact are not fitted.
+
 ## Reading a result
 
 - **Ordering quality.** *AP* (average precision) is higher when exploited findings come earlier; a filtered-out exploited finding counts as zero. *Alerts to full recall* is the share of a case's findings you read from the top to have seen every exploited one (lower is better), averaged over the cases where the method presents all of them (shown as `n/N`). *recall@k* is the share of a case's exploited findings within the first k. All are macro averages over cases with at least one exploited finding.

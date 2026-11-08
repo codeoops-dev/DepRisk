@@ -142,6 +142,7 @@ internal static class CliApp
         output.WriteLine("  bench --cases <manifest.json>  Compare the baselines (B1 CVSS, B2 KEV/EPSS/CVSS, B3 reachable-only) with the risk model on labeled cases");
         output.WriteLine("                  --split dev|test|all  --samples <n>  --seed <n>  --rank-by <stat>  --risk-params <file>  --bootstrap <n>  --analyzer <file>");
         output.WriteLine("                  --timeout <seconds>  --strict  --format table|json  --out <file>");
+        output.WriteLine("  bench calibrate --cases <manifest.json> --out <risk-params.json>  Fit the Reach factor on the dev split (--prior uniform|current, --min-count <n>, --risk-params <file>)");
         output.WriteLine("  audit verify  Verify the audit log (--pubkey <file>, --head <hash>)");
         output.WriteLine("  doctor        Check that this installation is healthy");
         output.WriteLine("  version       Print the version");

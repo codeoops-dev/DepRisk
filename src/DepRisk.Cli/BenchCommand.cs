@@ -27,6 +27,11 @@ internal static class BenchCommand
 
     public static ExitCode Run(string[] args, TextWriter output, CliContext context)
     {
+        if (args.Length > 0 && args[0] == "calibrate")
+        {
+            return BenchCalibrateCommand.Run(args[1..], output, context);
+        }
+
         string? cases = null;
         string split = "dev";
         string samplesText = DefaultSamples.ToString(CultureInfo.InvariantCulture);

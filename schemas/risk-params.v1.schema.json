@@ -34,6 +34,12 @@
     "schemaVersion": {
       "const": 1
     },
+    "provenance": {
+      "description": "Optional note on where the numbers come from (for example, 'deprisk bench calibrate' writes the dataset, split and counts it was fitted on). Informational: the model ignores it and the parameters digest does not cover it.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 600
+    },
     "reach": {
       "description": "Reach: the probability that the vulnerable code is exercised, a Beta by reachability label.",
       "type": "object",

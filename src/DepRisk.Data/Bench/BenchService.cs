@@ -58,27 +58,13 @@ public static class BenchService
 
         foreach (BenchCase item in selected)
         {
-            RankPipelineOptions pipelineOptions = new(
-                item.ScanPath,
-                item.AdvisoriesPath,
-                item.EpssPath,
-                item.KevPath,
-                item.Ecosystem,
+            RankPipelineOptions pipelineOptions = PipelineOptions(
+                item,
                 options.Strict,
-                item.SymbolsPath is null
-                    ? null
-                    : new ReachOptions(
-                        item.ScanPath,
-                        item.AdvisoriesPath,
-                        item.SymbolsPath,
-                        item.SourcePath,
-                        item.Ecosystem,
-                        options.Strict,
-                        item.EntrypointMode,
-                        item.Entrypoints,
-                        options.AnalyzerPath,
-                        options.ReachTimeout,
-                        options.WorkingDirectory),
+                options.AnalyzerPath,
+                options.ReachTimeout,
+                options.WorkingDirectory,
+                withSignals: true,
                 options.Risk);
 
             RankPipelineOutcome outcome = RankPipeline.Run(pipelineOptions, tool, analyzer, getEnvironmentVariable, options.WorkingDirectory);
@@ -130,6 +116,13 @@ public static class BenchService
             warnings.Add("All cases are used: this mixes the development and the held-out split, so it is not a held-out result.");
         }
 
+        if (options.Split != "test"
+            && options.Risk.Parameters.Provenance is { } note
+            && note.Contains($"(manifest {options.Manifest.Digest[..12]}", StringComparison.Ordinal))
+        {
+            warnings.Add("These risk parameters were fitted on the dev split of this very dataset: results on 'dev' or 'all' are not held-out. Evaluate with --split test.");
+        }
+
         if (unlabeled > 0)
         {
             warnings.Add($"{unlabeled} finding(s) have no label and are left out of every metric.");
@@ -171,6 +164,41 @@ public static class BenchService
 
         return new BenchOutcome(result, Digest.Sha256Hex(digest.ToString()));
     }
+
+    /// <summary>
+    /// The analysis options of one case. <paramref name="withSignals"/> false leaves EPSS and KEV out (calibrating the Reach priors does
+    /// not use them), <paramref name="risk"/> null skips the risk model.
+    /// </summary>
+    internal static RankPipelineOptions PipelineOptions(
+        BenchCase item,
+        bool strict,
+        string? analyzerPath,
+        TimeSpan timeout,
+        string workingDirectory,
+        bool withSignals,
+        RiskRequest? risk) =>
+        new(
+            item.ScanPath,
+            item.AdvisoriesPath,
+            withSignals ? item.EpssPath : null,
+            withSignals ? item.KevPath : null,
+            item.Ecosystem,
+            strict,
+            item.SymbolsPath is null
+                ? null
+                : new ReachOptions(
+                    item.ScanPath,
+                    item.AdvisoriesPath,
+                    item.SymbolsPath,
+                    item.SourcePath,
+                    item.Ecosystem,
+                    strict,
+                    item.EntrypointMode,
+                    item.Entrypoints,
+                    analyzerPath,
+                    timeout,
+                    workingDirectory),
+            risk);
 
     public static readonly IReadOnlyList<NotEvaluated> NotEvaluatedMetrics =
     [
@@ -216,6 +244,35 @@ public static class BenchService
 
     private static (BenchCaseData Data, int Unlabeled, int Unmatched) Join(BenchCase item, RankingResult ranking)
     {
+        (List<(RankedFinding Finding, BenchLabel Label)> pairs, int unlabeled, int unmatched) = JoinLabels(item, ranking);
+        List<BenchFinding> findings = [];
+
+        foreach ((RankedFinding f, BenchLabel found) in pairs)
+        {
+            FindingRisk risk = f.Risk ?? throw new InvalidOperationException("a finding has no risk distribution although the model was requested.");
+
+            findings.Add(new BenchFinding(
+                f.Id,
+                f.Package.Id,
+                f.Package.Version,
+                f.BaselineRank ?? f.Rank,
+                f.Rank,
+                f.Signals.Cvss?.BaseScore,
+                f.Severity,
+                f.Reachability?.Label,
+                found.Exploited,
+                found.Reachable,
+                risk.ExploitMean,
+                risk.ReachMean,
+                f.Signals.Epss?.Probability));
+        }
+
+        return (new BenchCaseData(item.Id, findings), unlabeled, unmatched);
+    }
+
+    /// <summary>Joins the findings of a case to its labels (by advisory id or alias, and package id); counts what matched nothing on either side.</summary>
+    internal static (List<(RankedFinding Finding, BenchLabel Label)> Pairs, int Unlabeled, int Unmatched) JoinLabels(BenchCase item, RankingResult ranking)
+    {
         Dictionary<string, BenchLabel> byKey = new(StringComparer.OrdinalIgnoreCase);
 
         foreach (BenchLabel label in item.Labels)
@@ -224,7 +281,7 @@ public static class BenchService
         }
 
         HashSet<string> used = new(StringComparer.OrdinalIgnoreCase);
-        List<BenchFinding> findings = [];
+        List<(RankedFinding, BenchLabel)> pairs = [];
         int unlabeled = 0;
 
         foreach (RankedFinding f in ranking.Findings)
@@ -256,25 +313,10 @@ public static class BenchService
                 continue;
             }
 
-            FindingRisk risk = f.Risk ?? throw new InvalidOperationException("a finding has no risk distribution although the model was requested.");
-
-            findings.Add(new BenchFinding(
-                f.Id,
-                f.Package.Id,
-                f.Package.Version,
-                f.BaselineRank ?? f.Rank,
-                f.Rank,
-                f.Signals.Cvss?.BaseScore,
-                f.Severity,
-                f.Reachability?.Label,
-                found.Exploited,
-                found.Reachable,
-                risk.ExploitMean,
-                risk.ReachMean,
-                f.Signals.Epss?.Probability));
+            pairs.Add((f, found));
         }
 
-        return (new BenchCaseData(item.Id, findings), unlabeled, byKey.Count - used.Count);
+        return (pairs, unlabeled, byKey.Count - used.Count);
     }
 
     private static string Key(string advisory, string package) => advisory + "\u001f" + package;

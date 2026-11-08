@@ -4,7 +4,7 @@ using DepRisk.Core.Risk;
 
 namespace DepRisk.Data.Risk;
 
-public sealed record LoadedRiskParameters(RiskParameters Parameters, string Calibration, string ParametersDigest);
+public sealed record LoadedRiskParameters(RiskParameters Parameters, string Calibration, string ParametersDigest, string? Provenance = null);
 
 /// <summary>
 /// Reads a parameters file for the risk model (schemas/risk-params.v1.schema.json): the built-in defaults with any of their numbers
@@ -72,23 +72,25 @@ public static class RiskParametersLoader
                 throw new InvalidInputException($"{name}: unsupported schemaVersion {v} (this version reads 1).");
             }
 
-            RiskParameters parameters = Apply(root, RiskParameters.Default, name);
+            RiskParameters parameters = Apply(root, RiskParameters.Default, name, out string? provenance);
 
             if (parameters.Validate() is { } problem)
             {
                 throw new InvalidInputException($"{name}: {problem}.");
             }
 
-            return Describe(parameters, CustomCalibration);
+            return Describe(parameters, CustomCalibration, provenance);
         }
     }
 
-    private static LoadedRiskParameters Describe(RiskParameters parameters, string calibration) =>
-        new(parameters, calibration, Digest.Sha256Hex(parameters.Canonical()));
+    private static LoadedRiskParameters Describe(RiskParameters parameters, string calibration, string? provenance = null) =>
+        new(parameters, calibration, Digest.Sha256Hex(parameters.Canonical()), provenance);
 
-    private static RiskParameters Apply(JsonElement root, RiskParameters start, string file)
+    private static RiskParameters Apply(JsonElement root, RiskParameters start, string file, out string? provenance)
     {
-        RequireKnown(root, ["schemaVersion", "reach", "exploit", "impact"], "the file", file);
+        RequireKnown(root, ["schemaVersion", "provenance", "reach", "exploit", "impact"], "the file", file);
+
+        provenance = ReadProvenance(root, file);
 
         RiskParameters result = start;
 
@@ -148,6 +150,24 @@ public static class RiskParametersLoader
         }
 
         return result;
+    }
+
+    /// <summary>The optional free-text note on where the numbers come from. Informational: the model ignores it and the parameters digest does not cover it.</summary>
+    private static string? ReadProvenance(JsonElement root, string file)
+    {
+        if (!root.TryGetProperty("provenance", out JsonElement element))
+        {
+            return null;
+        }
+
+        string? text = element.ValueKind == JsonValueKind.String ? element.GetString() : null;
+
+        if (text is null || text.Length == 0 || text.Length > RiskParametersWriter.MaxProvenanceLength || text.Any(c => char.IsControl(c) && c != '\n'))
+        {
+            throw new InvalidInputException($"{file}: 'provenance' must be text of 1 to {RiskParametersWriter.MaxProvenanceLength} characters without control characters.");
+        }
+
+        return text;
     }
 
     private static BetaParams Beta(JsonElement parent, string name, BetaParams fallback, string file)

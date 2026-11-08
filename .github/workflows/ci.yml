@@ -471,3 +471,39 @@ jobs:
           cat bench-leak.err
           test "$leak" = "4" || { echo "expected the leakage guard to refuse the manifest (exit 4), got $leak"; exit 1; }
           grep -q "leakage guard" bench-leak.err
+
+      # Fitting the Reach factor on the dev split of the synthetic smoke dataset (S12b): the file is valid, complete, deterministic, and
+      # flagged when it is evaluated on the data it was fitted on. The fitted numbers are fixtures, not results.
+      - name: bench calibrate (synthetic smoke)
+        run: |
+          cli="dotnet run --no-build -c Release --project src/DepRisk.Cli --"
+          analyzer="analyzers/reach/target/release/deprisk-reach"
+          manifest="tests/fixtures/reach/bench-manifest.json"
+          set +e
+          $cli bench calibrate --cases $manifest --analyzer $analyzer --out fitted-none.json 2> calibrate-none.err
+          none=$?
+          set -e
+          test "$none" = "4" || { echo "expected 'nothing to fit' (exit 4) with the default minimum, got $none"; exit 1; }
+          grep -q "nothing to fit" calibrate-none.err
+          test ! -e fitted-none.json
+          $cli bench calibrate --cases $manifest --analyzer $analyzer --min-count 1 --out fitted-1.json
+          $cli bench calibrate --cases $manifest --analyzer $analyzer --min-count 1 --out fitted-2.json > /dev/null
+          cmp fitted-1.json fitted-2.json
+          python3 -m check_jsonschema --schemafile schemas/risk-params.v1.schema.json fitted-1.json
+          $cli bench --cases $manifest --analyzer $analyzer --split test --risk-params fitted-1.json --format json --out bench-fitted-test.json
+          $cli bench --cases $manifest --analyzer $analyzer --split dev --risk-params fitted-1.json --format json --out bench-fitted-dev.json
+          python3 -m check_jsonschema --schemafile schemas/bench-result.v1.schema.json bench-fitted-test.json bench-fitted-dev.json
+          python3 - <<'PY'
+          import json
+          fit = json.load(open("fitted-1.json", encoding="utf-8"))
+          assert (fit["reach"]["reachable"]["alpha"], fit["reach"]["reachable"]["beta"]) == (3, 1), fit["reach"]
+          assert (fit["reach"]["unknown"]["alpha"], fit["reach"]["unknown"]["beta"]) == (2, 3), fit["reach"]
+          assert (fit["reach"]["unreachable"]["alpha"], fit["reach"]["unreachable"]["beta"]) == (1, 49), fit["reach"]
+          assert "SYNTHETIC" in fit["provenance"] and "dev split" in fit["provenance"], fit["provenance"]
+          test = json.load(open("bench-fitted-test.json", encoding="utf-8"))
+          dev = json.load(open("bench-fitted-dev.json", encoding="utf-8"))
+          assert test["model"]["calibration"] == "custom", test["model"]
+          assert not any("fitted on the dev split" in w for w in test["warnings"]), test["warnings"]
+          assert any("fitted on the dev split of this very dataset" in w for w in dev["warnings"]), dev["warnings"]
+          print("bench calibrate: valid, deterministic, held-out evaluation unflagged, same-data evaluation flagged")
+          PY
