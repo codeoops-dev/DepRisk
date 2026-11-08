@@ -182,22 +182,23 @@ Commands marked *(planned)* do not exist yet; the table in [Feature status](#fea
 | `deprisk plan` *(planned)* | Compute an optimal remediation plan under budget and constraints. |
 | `deprisk verify <plan>` *(planned)* | Check a plan with the formally verified kernel. |
 | `deprisk apply <plan>` *(planned)* | Apply a verified plan (manifest edits, branch, optional PR). |
-| `deprisk explain <id>` *(planned)* | Explain why a finding ranks where it does (evidence, call path, uncertainty). |
-| `deprisk vex` *(planned)* | Export OpenVEX statements for findings proven or judged unreachable. |
+| `deprisk explain <id> [path]` | Why a finding stands where it does: the baseline key that decided its place (or the risk statistic and the baseline rank), the evidence (installed where, fixed in, KEV, EPSS, CVSS), the reachability path step by step with the symbol sources, and what would change the picture. `<id>` is an advisory id or alias; `--package`, the analysis options of `rank` (`--advisories`, `--epss`, `--kev`, `--symbols`..., `--model risk`...), `--format table\|json`, `--out`. Every sentence is built from the data by a fixed template. |
+| `deprisk vex [path]` | An OpenVEX 0.2.0 document, one statement per finding, for `--product <purl\|iri>` by `--author <text>` (`--role`, `--timestamp <rfc3339>`; the analysis options of `rank`). `not_affected` (justification `vulnerable_code_not_in_execute_path`) only for a finding proven unreachable under strict conditions (see below); `affected` with an action for a reachable one; everything else `under_investigation`. |
 | `deprisk audit verify [path]` | Verify the integrity of the audit log (`--pubkey <file>`, `--head <hash>`). |
 | `deprisk bundle create\|import\|verify` *(planned)* | Build or load signed offline data bundles. |
 | `deprisk bench` *(planned)* | Run the reproducible benchmark suite. |
 | `deprisk ci [path]` | One-shot CI mode: like `rank`, plus a policy gate. `--fail-on <expression>` (see below) makes it exit with code 1 when a finding matches; `--format table\|json\|sarif`, `--out`; optionally `--symbols <file\|dir>` with `--source`, `--analyzer`, `--entrypoints`, `--entrypoint`, `--timeout` (as for `reach`) to add reachability and use it in the gate. The verdict is printed on standard error so json and sarif on standard output stay clean. |
 | `deprisk doctor` | Diagnose the installation. |
 
+### When `vex` says "not affected"
+
+A VEX statement is made for other people to rely on, so `not_affected` is the hardest status to earn. `deprisk vex` writes it only for a finding whose reachability verdict is `unreachable`, which itself requires a symbol list declared `complete`, every source file read, no unreadable reflection or call on a value of unknown type in the reachable code, and a direct dependency; `vex` then checks again that the package is a direct dependency everywhere it occurs, that no file was skipped or unreadable, and that the symbol list has provenance. If any condition fails, the statement is `under_investigation` with a note. Without `--symbols` every statement is `under_investigation`. The impact statement names the analyzer, the digest of the analyzed sources, and the digest of the symbol maps. It is a statement about a conservative call graph, not a proof (ADR 0016).
+
 ### Examples (planned commands)
 
 These show the intended interface of commands that are not released yet.
 
 ```bash
-# Why is this finding ranked first? Shows call path and the distribution behind the score.
-deprisk explain GHSA-xxxx-xxxx
-
 # Be risk-averse: weight the worst 5% of outcomes
 deprisk plan --budget 8h --risk-aversion 0.4 --cvar-alpha 0.95
 
@@ -607,7 +608,8 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 | Audit | Merkle checkpoints and external anchoring | 🗺️ |
 | Offline | Signed bundles | 🗺️ |
 | Output | SARIF 2.1.0 and JSON for ranked findings (`rank`, `ci`) | ✅ |
-| Output | OpenVEX | 🗺️ |
+| Output | OpenVEX 0.2.0 export via `deprisk vex` (`not_affected` only under strict conditions, ADR 0016) | 🚧 |
+| Output | `deprisk explain`: evidence, reachability path, risk, and what would change it, as text or JSON | 🚧 |
 | CI | `deprisk ci` + policy gate (`kev`, `ransomware`, `direct`, `fixable`, `cvss`, `epss`, `severity`) | ✅ |
 | CI | Reachability terms in the policy gate (`reachable`, `possibly-reachable`, `reach-unknown`, `unreachable`, `not-unreachable`); needs the analyzer built from source | 🚧 |
 | CI | GitHub Action wrapper | 🗺️ |
@@ -619,7 +621,7 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 ## Roadmap
 
 - **v0.1** CLI skeleton, NuGet + npm ingest, hypergraph, advisory matching, risk ranking (CVSS+EPSS+KEV baseline), audit log, `ci` policy gate, SARIF. First pre-release: `0.1.0-alpha.1`.
-- **v0.2** Reachability (C#, JS/TS), uncertainty model, `explain`, OpenVEX export.
+- **v0.2** Reachability (C#, JS/TS), uncertainty model, `explain`, OpenVEX export. Done in the repository, not yet in a release: C# reachability, the uncertainty model with placeholder parameters, `explain`, `vex`. Still to do: the JS/TS analyzer, shipping the analyzer with the tool, real symbol data, calibration.
 - **v0.3** Optimizer (MILP + CVaR), plan format, `plan`/`apply --dry-run`.
 - **v0.4** SPARK kernel and proofs, `verify`, benchmark harness and first published results.
 - **v0.5** Signed offline bundles, GitHub Action (the `ci` command and SARIF output already ship with v0.1).

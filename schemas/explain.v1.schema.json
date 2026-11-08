@@ -1,0 +1,592 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/codeoops-dev/deprisk/schemas/explain.v1.schema.json",
+  "title": "DepRisk explain (v1)",
+  "description": "Output of 'deprisk explain --format json': why a finding stands where it does. Every sentence is built from the data in the same document by a fixed template. Deterministic: no timestamps, no absolute paths. Text fields that come from advisories or from the analyzer are untrusted data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "tool",
+    "ecosystem",
+    "method",
+    "query",
+    "findings"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ecosystem": {
+      "enum": [
+        "nuget",
+        "npm"
+      ]
+    },
+    "method": {
+      "enum": [
+        "baseline-kev-epss-cvss",
+        "risk-monte-carlo"
+      ]
+    },
+    "query": {
+      "description": "The advisory id or alias that was asked about.",
+      "type": "string"
+    },
+    "findings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "finding",
+          "reachability",
+          "position",
+          "evidence",
+          "whatWouldChange"
+        ],
+        "properties": {
+          "finding": {
+            "$ref": "#/$defs/rankedFinding"
+          },
+          "reachability": {
+            "description": "The full reachability verdict with its path. Null when reachability was not analyzed.",
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "required": [
+              "label",
+              "reason",
+              "symbol",
+              "path",
+              "symbolSources"
+            ],
+            "properties": {
+              "label": {
+                "enum": [
+                  "reachable",
+                  "possibly-reachable",
+                  "unreachable",
+                  "unknown"
+                ]
+              },
+              "reason": {
+                "enum": [
+                  "static-path",
+                  "dynamic-path",
+                  "no-path",
+                  "no-symbols",
+                  "no-entrypoints",
+                  "symbol-list-incomplete",
+                  "incomplete-analysis",
+                  "unresolved-reflection",
+                  "unresolved-receiver",
+                  "transitive-package-code-not-analyzed",
+                  "no-analyzer-for-ecosystem"
+                ]
+              },
+              "symbol": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "path": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "from",
+                    "to",
+                    "kind",
+                    "file",
+                    "line"
+                  ],
+                  "properties": {
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "static",
+                        "dynamic"
+                      ]
+                    },
+                    "file": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "line": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              },
+              "symbolSources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "position": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "method",
+              "rank",
+              "of",
+              "baselineRank",
+              "why"
+            ],
+            "properties": {
+              "method": {
+                "type": "string"
+              },
+              "rank": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "of": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "baselineRank": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "why": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "whatWouldChange": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "signalSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "digest",
+        "version",
+        "date",
+        "entries",
+        "skipped"
+      ],
+      "properties": {
+        "source": {
+          "description": "File name only.",
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "description": "SHA-256 of the supplied file's bytes.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "version": {
+          "description": "EPSS model version or KEV catalog version, as published in the data.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "date": {
+          "description": "EPSS score date or KEV release date, as published in the data.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "entries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "description": "Malformed rows or entries that were ignored.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "rankedFinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rank",
+        "id",
+        "aliases",
+        "summary",
+        "severity",
+        "package",
+        "fixedVersions",
+        "locations",
+        "signals",
+        "reachability",
+        "risk",
+        "baselineRank"
+      ],
+      "properties": {
+        "rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "severity": {
+          "description": "The advisory database's own rating, if present.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "package": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "version"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "fixedVersions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "locations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "project",
+              "target",
+              "isDirect"
+            ],
+            "properties": {
+              "project": {
+                "type": "string",
+                "minLength": 1
+              },
+              "target": {
+                "type": "string",
+                "minLength": 1
+              },
+              "isDirect": {
+                "type": "boolean"
+              },
+              "projectFile": {
+                "description": "The file that stands for the project in the repository: the project file when known, otherwise the assets file path. Relative, forward slashes.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "signals": {
+          "description": "null means the signal is not available for this finding, never zero.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cvss",
+            "epss",
+            "kev"
+          ],
+          "properties": {
+            "cvss": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "version",
+                    "vector",
+                    "baseScore",
+                    "rating"
+                  ],
+                  "properties": {
+                    "version": {
+                      "enum": [
+                        "3.0",
+                        "3.1"
+                      ]
+                    },
+                    "vector": {
+                      "type": "string",
+                      "pattern": "^CVSS:3\\.[01]/"
+                    },
+                    "baseScore": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 10
+                    },
+                    "rating": {
+                      "enum": [
+                        "NONE",
+                        "LOW",
+                        "MEDIUM",
+                        "HIGH",
+                        "CRITICAL"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            "epss": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "cve",
+                    "probability",
+                    "percentile"
+                  ],
+                  "properties": {
+                    "cve": {
+                      "type": "string",
+                      "pattern": "^CVE-\\d{4}-\\d{4,}$"
+                    },
+                    "probability": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "percentile": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  }
+                }
+              ]
+            },
+            "kev": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "cve",
+                    "dateAdded",
+                    "knownRansomwareUse"
+                  ],
+                  "properties": {
+                    "cve": {
+                      "type": "string",
+                      "pattern": "^CVE-\\d{4}-\\d{4,}$"
+                    },
+                    "dateAdded": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "knownRansomwareUse": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "reachability": {
+          "description": "The reachability verdict (see 'deprisk reach' for the path). Null when no symbol maps were supplied: not analyzed, never 'unreachable'. Does not affect rank.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "reason",
+            "symbol"
+          ],
+          "properties": {
+            "label": {
+              "enum": [
+                "reachable",
+                "possibly-reachable",
+                "unreachable",
+                "unknown"
+              ]
+            },
+            "reason": {
+              "enum": [
+                "static-path",
+                "dynamic-path",
+                "no-path",
+                "no-symbols",
+                "no-entrypoints",
+                "symbol-list-incomplete",
+                "incomplete-analysis",
+                "unresolved-reflection",
+                "unresolved-receiver",
+                "transitive-package-code-not-analyzed",
+                "no-analyzer-for-ecosystem"
+              ]
+            },
+            "symbol": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "risk": {
+          "description": "The risk distribution of R = Reach x Exploit x Impact over the Monte Carlo scenarios, rounded to six decimals. Null with the baseline method. Modeled risk, not real-world loss.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "mean",
+            "p50",
+            "p90",
+            "p95",
+            "cvar95",
+            "reachMean",
+            "exploitMean",
+            "impactMean"
+          ],
+          "properties": {
+            "mean": {
+              "type": "number",
+              "minimum": 0
+            },
+            "p50": {
+              "type": "number",
+              "minimum": 0
+            },
+            "p90": {
+              "type": "number",
+              "minimum": 0
+            },
+            "p95": {
+              "type": "number",
+              "minimum": 0
+            },
+            "cvar95": {
+              "type": "number",
+              "minimum": 0
+            },
+            "reachMean": {
+              "type": "number",
+              "minimum": 0
+            },
+            "exploitMean": {
+              "type": "number",
+              "minimum": 0
+            },
+            "impactMean": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
+        "baselineRank": {
+          "description": "The rank the baseline method gives this finding. Null with the baseline method.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

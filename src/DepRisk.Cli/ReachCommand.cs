@@ -132,21 +132,8 @@ internal static class ReachCommand
         return ExitCode.Success;
     }
 
-    internal static string Describe(string reason) => reason switch
-    {
-        ReachLabels.StaticPath => "a call path exists",
-        ReachLabels.DynamicPath => "a path exists only through dynamic edges (dispatch, reflection by name, calls on values of unknown type)",
-        ReachLabels.NoPath => "no path from any entrypoint",
-        ReachLabels.NoSymbols => "no symbol list for this advisory (add one with --symbols)",
-        ReachLabels.NoEntrypoints => "no entrypoint found (for a library use --entrypoints public-api; or name one with --entrypoint)",
-        ReachLabels.SymbolListIncomplete => "no path found, but the symbol list is not declared complete",
-        ReachLabels.IncompleteAnalysis => "some source could not be read completely",
-        ReachLabels.UnresolvedReflection => "reflection with a target that cannot be read is reachable",
-        ReachLabels.UnresolvedReceiver => "a call on a value of unknown type could reach it",
-        ReachLabels.TransitivePackage => "transitive dependency: its own code is not analyzed, so absence of a path proves nothing",
-        ReachLabels.NoAnalyzerForEcosystem => "there is no reachability analyzer for this ecosystem yet",
-        _ => TerminalText.Safe(reason, 60),
-    };
+    internal static string Describe(string reason) =>
+        ReachLabels.Describe(reason) is { } words && words != "unrecognized reason" ? words : TerminalText.Safe(reason, 60);
 
     private static string RenderTable(ReachOutcome outcome)
     {

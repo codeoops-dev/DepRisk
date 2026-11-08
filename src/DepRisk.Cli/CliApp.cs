@@ -82,6 +82,12 @@ internal static class CliApp
             case "reach":
                 return ReachCommand.Run(args[1..], output, context);
 
+            case "explain":
+                return ExplainCommand.Run(args[1..], output, context);
+
+            case "vex":
+                return VexCommand.Run(args[1..], output, context);
+
             case "rank":
                 return RankCommand.Run(args[1..], output, context);
 
@@ -118,6 +124,10 @@ internal static class CliApp
         output.WriteLine("  reach [path]  Can the vulnerable code be reached from your application? (C#, needs symbol maps and the analyzer)");
         output.WriteLine("                  --advisories <...>  --symbols <file|dir>  --source <dir>  --entrypoints auto|public-api|none");
         output.WriteLine("                  --entrypoint <Ns.Type.Method>  --analyzer <file>  --timeout <seconds>  --format table|json  --out <file>");
+        output.WriteLine("  explain <id> [path]  Why a finding stands where it does: evidence, reachability path, risk, what would change it");
+        output.WriteLine("                  --advisories <...>  --package <id>  (analysis options as for rank)  --format table|json  --out <file>");
+        output.WriteLine("  vex [path]    OpenVEX 0.2.0 statements for the findings (not_affected only for proven unreachable ones)");
+        output.WriteLine("                  --product <purl|iri>  --author <text>  [--role <text>]  [--timestamp <rfc3339>]  (analysis options)  --out <file>");
         output.WriteLine("  rank [path]   Like match, ordered by CISA KEV, EPSS, and CVSS (baseline; offline)");
         output.WriteLine("                  --advisories <...> (required)  --epss <csv[.gz]>  --kev <json>");
         output.WriteLine("                  --format table|json|sarif  --out <file>  --strict  --ecosystem auto|nuget|npm");

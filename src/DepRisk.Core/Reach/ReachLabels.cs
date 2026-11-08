@@ -30,6 +30,23 @@ public static class ReachLabels
         StaticPath, DynamicPath, NoPath, NoSymbols, NoEntrypoints, SymbolListIncomplete, IncompleteAnalysis, UnresolvedReflection, UnresolvedReceiver,
     ];
 
+    /// <summary>The reason in words, for people (the machine-readable reason stays in the result).</summary>
+    public static string Describe(string reason) => reason switch
+    {
+        StaticPath => "a call path exists",
+        DynamicPath => "a path exists only through dynamic edges (dispatch, reflection by name, calls on values of unknown type)",
+        NoPath => "no path from any entrypoint",
+        NoSymbols => "no symbol list for this advisory (add one with --symbols)",
+        NoEntrypoints => "no entrypoint found (for a library use --entrypoints public-api; or name one with --entrypoint)",
+        SymbolListIncomplete => "no path found, but the symbol list is not declared complete",
+        IncompleteAnalysis => "some source could not be read completely",
+        UnresolvedReflection => "reflection with a target that cannot be read is reachable",
+        UnresolvedReceiver => "a call on a value of unknown type could reach it",
+        TransitivePackage => "transitive dependency: its own code is not analyzed, so absence of a path proves nothing",
+        NoAnalyzerForEcosystem => "there is no reachability analyzer for this ecosystem yet",
+        _ => "unrecognized reason",
+    };
+
     /// <summary>Most urgent first: what a person should look at first.</summary>
     public static int Priority(string label) => label switch
     {

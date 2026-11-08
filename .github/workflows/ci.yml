@@ -401,3 +401,29 @@ jobs:
           assert all(f["risk"]["p50"] <= f["risk"]["p95"] <= f["risk"]["cvar95"] for f in doc["findings"])
           print("risk model: deterministic, valid, ordered:", [(f["rank"], f["id"], f["risk"]["mean"]) for f in doc["findings"]])
           PY
+
+      # explain and the OpenVEX export, on the same fixtures.
+      - name: explain and vex
+        run: |
+          cli="dotnet run --no-build -c Release --project src/DepRisk.Cli --"
+          common="tests/fixtures/reach/assets --source tests/fixtures/reach/csharp --advisories tests/fixtures/reach/osv --symbols tests/fixtures/reach/symbols --analyzer analyzers/reach/target/release/deprisk-reach"
+          $cli explain DEPRISK-EXAMPLE-0001 $common --model risk --format json --out explain.json
+          python3 -m check_jsonschema --schemafile schemas/explain.v1.schema.json explain.json
+          $cli vex $common --product pkg:nuget/Sample@1.0.0 --author "DepRisk CI" --timestamp 2026-11-05T12:00:00Z --out vex-1.json
+          $cli vex $common --product pkg:nuget/Sample@1.0.0 --author "DepRisk CI" --timestamp 2026-11-05T12:00:00Z --out vex-2.json
+          cmp vex-1.json vex-2.json
+          python3 - <<'PY'
+          import json
+          ex = json.load(open("explain.json", encoding="utf-8"))
+          f = ex["findings"][0]
+          assert f["reachability"]["label"] == "reachable" and f["position"]["baselineRank"] is not None, f["position"]
+          assert any("Path step 1" in line for line in f["evidence"]), f["evidence"]
+          vex = json.load(open("vex-1.json", encoding="utf-8"))
+          assert vex["@context"] == "https://openvex.dev/ns/v0.2.0" and vex["version"] == 1
+          status = {s["vulnerability"]["name"]: s["status"] for s in vex["statements"]}
+          assert status["DEPRISK-EXAMPLE-0001"] == "affected", status
+          assert status["DEPRISK-EXAMPLE-0002"] == "under_investigation", status   # transitive: never not_affected
+          assert status["DEPRISK-EXAMPLE-0003"] == "under_investigation", status   # no symbol list
+          assert all(s["status"] != "affected" or s.get("action_statement") for s in vex["statements"])
+          print("explain and vex:", status)
+          PY

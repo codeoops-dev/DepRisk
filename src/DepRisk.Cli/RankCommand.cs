@@ -238,52 +238,23 @@ internal static class RankCommand
 
         string scanPath = Path.GetFullPath(path, context.WorkingDirectory);
         string advisoriesPath = Path.GetFullPath(advisories, context.WorkingDirectory);
-        string? epssPath = epss is null ? null : Path.GetFullPath(epss, context.WorkingDirectory);
-        string? kevPath = kev is null ? null : Path.GetFullPath(kev, context.WorkingDirectory);
-        ToolInfo tool = new(ProductInfo.CommandName, VersionInfo.Current);
 
-        RankingOutcome outcome;
+        RankPipelineOutcome pipeline = RankPipeline.Run(
+            new RankPipelineOptions(
+                scanPath,
+                advisoriesPath,
+                epss is null ? null : Path.GetFullPath(epss, context.WorkingDirectory),
+                kev is null ? null : Path.GetFullPath(kev, context.WorkingDirectory),
+                ecosystem,
+                strict,
+                reach.Symbols is null ? null : reach.ToOptions(scanPath, advisoriesPath, ecosystem, strict, context),
+                loadedRisk is null ? null : new RiskRequest(loadedRisk, samples, seed, rankBy)),
+            new ToolInfo(ProductInfo.CommandName, VersionInfo.Current),
+            new AnalyzerProcess(),
+            Environment.GetEnvironmentVariable,
+            AppContext.BaseDirectory);
 
-        if (reach.Symbols is null)
-        {
-            outcome = RankingService.Rank(scanPath, advisoriesPath, epssPath, kevPath, tool, strict, ecosystem);
-        }
-        else
-        {
-            // Reachability is computed first (it matches the advisories itself); the ranking reuses those findings.
-            ReachOutcome reached = ReachService.Run(
-                reach.ToOptions(scanPath, advisoriesPath, ecosystem, strict, context),
-                tool,
-                new AnalyzerProcess(),
-                Environment.GetEnvironmentVariable,
-                AppContext.BaseDirectory);
-
-            RankingOutcome ranked = RankingService.Rank(scanPath, advisoriesPath, epssPath, kevPath, tool, strict, ecosystem, reached.Findings);
-
-            outcome = ranked with
-            {
-                Result = RankingService.WithReachability(ranked.Result, reached.Result),
-                InputsDigest = Digest.Sha256Hex(ranked.InputsDigest + "\n" + reached.InputsDigest + "\n"),
-            };
-        }
-
-        if (loadedRisk is not null)
-        {
-            try
-            {
-                outcome = outcome with
-                {
-                    Result = RankingService.WithRiskModel(outcome.Result, loadedRisk, samples, seed, rankBy),
-                    InputsDigest = Digest.Sha256Hex(
-                        $"{outcome.InputsDigest}\nrisk:{loadedRisk.ParametersDigest}|{samples}|{seed?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "default"}|{rankBy}\n"),
-                };
-            }
-            catch (ArgumentException ex)
-            {
-                // The model refuses too much work (findings x samples); say so as an input problem.
-                throw new InvalidInputException(ex.Message, ex);
-            }
-        }
+        RankingOutcome outcome = pipeline.Ranking;
 
         string json = RankingResultJson.Serialize(outcome.Result);
         string text = format switch
