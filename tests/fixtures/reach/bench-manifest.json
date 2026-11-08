@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "name": "synthetic-smoke",
+  "description": "A tiny synthetic benchmark built on the reachability fixtures. It exercises the harness (leakage guard, splits, metrics, output); its numbers are not evidence about any method.",
+  "synthetic": true,
+  "signalsAsOf": "2026-01-31",
+  "outcomeWindow": { "from": "2026-02-01", "to": "2026-07-31" },
+  "labelSource": "invented for the DepRisk tests; not observed in the world",
+  "cases": [
+    {
+      "id": "dev-1",
+      "split": "dev",
+      "path": "assets",
+      "advisories": "osv",
+      "epss": "epss/epss.csv",
+      "kev": "kev/kev.json",
+      "symbols": "symbols/example.json",
+      "source": "csharp",
+      "labels": [
+        { "advisory": "DEPRISK-EXAMPLE-0001", "package": "Newtonsoft.Json", "exploited": true, "reachable": true },
+        { "advisory": "DEPRISK-EXAMPLE-0002", "package": "Example.Lib", "exploited": false, "reachable": false },
+        { "advisory": "DEPRISK-EXAMPLE-0003", "package": "Other.Lib", "exploited": false, "reachable": null }
+      ]
+    },
+    {
+      "id": "dev-2",
+      "split": "dev",
+      "path": "assets",
+      "advisories": "osv",
+      "epss": "epss/epss.csv",
+      "kev": "kev/kev.json",
+      "symbols": "symbols/example.json",
+      "source": "csharp",
+      "labels": [
+        { "advisory": "CVE-2099-0001", "package": "Newtonsoft.Json", "exploited": false, "reachable": true },
+        { "advisory": "DEPRISK-EXAMPLE-0002", "package": "Example.Lib", "exploited": true, "reachable": true },
+        { "advisory": "DEPRISK-EXAMPLE-0003", "package": "Other.Lib", "exploited": false, "reachable": false }
+      ]
+    },
+    {
+      "id": "test-1",
+      "split": "test",
+      "path": "assets",
+      "advisories": "osv",
+      "labels": [
+        { "advisory": "DEPRISK-EXAMPLE-0001", "package": "Newtonsoft.Json", "exploited": true, "reachable": true },
+        { "advisory": "DEPRISK-EXAMPLE-0002", "package": "Example.Lib", "exploited": false, "reachable": false },
+        { "advisory": "DEPRISK-EXAMPLE-0003", "package": "Other.Lib", "exploited": true, "reachable": null }
+      ]
+    }
+  ]
+}

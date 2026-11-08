@@ -427,3 +427,47 @@ jobs:
           assert all(s["status"] != "affected" or s.get("action_statement") for s in vex["statements"])
           print("explain and vex:", status)
           PY
+
+      # The benchmark harness on the synthetic smoke dataset: schemas, determinism, the leakage guard, and what the metrics must show.
+      # The numbers of this dataset are test fixtures (synthetic: true) and are never reported as results.
+      - name: bench (synthetic smoke)
+        run: |
+          cli="dotnet run --no-build -c Release --project src/DepRisk.Cli --"
+          bench="bench --cases tests/fixtures/reach/bench-manifest.json --analyzer analyzers/reach/target/release/deprisk-reach"
+          python3 -m check_jsonschema --schemafile schemas/bench-manifest.v1.schema.json tests/fixtures/reach/bench-manifest.json
+          $cli $bench --format json --out bench-1.json
+          $cli $bench --format json --out bench-2.json
+          cmp bench-1.json bench-2.json
+          python3 -m check_jsonschema --schemafile schemas/bench-result.v1.schema.json bench-1.json
+          $cli $bench --split test --format json --out bench-test.json
+          python3 -m check_jsonschema --schemafile schemas/bench-result.v1.schema.json bench-test.json
+          python3 - <<'PY'
+          import json
+          doc = json.load(open("bench-1.json", encoding="utf-8"))
+          assert doc["dataset"]["synthetic"] is True and doc["split"] == "dev", doc["dataset"]
+          assert any("synthetic" in w for w in doc["warnings"]), doc["warnings"]
+          assert doc["counts"]["labeled"] == 6 and doc["counts"]["unlabeled"] == 0, doc["counts"]
+          methods = {m["id"]: m for m in doc["methods"]}
+          assert methods["b2-baseline"]["averagePrecision"] == 0.75, methods["b2-baseline"]
+          assert methods["b3-reachable-only"]["exploitedMissed"] == 1, methods["b3-reachable-only"]
+          assert methods["b3c-not-unreachable"]["exploitedMissed"] == 0, methods["b3c-not-unreachable"]
+          assert doc["reach"]["unsoundUnreachable"] == 0, doc["reach"]
+          assert doc["model"]["calibration"] == "uncalibrated-defaults", doc["model"]
+          test = json.load(open("bench-test.json", encoding="utf-8"))
+          assert test["counts"]["cases"] == 1 and test["bootstrap"]["notComputedReason"], test["bootstrap"]
+          print("bench: valid, deterministic, and the filters behave as labeled:", {k: v["averagePrecision"] for k, v in methods.items()})
+
+          # A manifest whose signals are newer than signalsAsOf must be refused.
+          m = json.load(open("tests/fixtures/reach/bench-manifest.json", encoding="utf-8"))
+          m["signalsAsOf"] = "2026-01-10"
+          m["outcomeWindow"]["from"] = "2026-01-11"
+          json.dump(m, open("tests/fixtures/reach/bench-leak.json", "w", encoding="utf-8"))
+          PY
+          set +e
+          $cli bench --cases tests/fixtures/reach/bench-leak.json --analyzer analyzers/reach/target/release/deprisk-reach 2> bench-leak.err
+          leak=$?
+          set -e
+          rm tests/fixtures/reach/bench-leak.json
+          cat bench-leak.err
+          test "$leak" = "4" || { echo "expected the leakage guard to refuse the manifest (exit 4), got $leak"; exit 1; }
+          grep -q "leakage guard" bench-leak.err

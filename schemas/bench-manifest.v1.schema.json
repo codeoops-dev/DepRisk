@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/codeoops-dev/deprisk/schemas/bench-manifest.v1.schema.json",
+  "title": "DepRisk benchmark manifest (v1)",
+  "description": "Input of 'deprisk bench --cases': labeled cases with the data each is analyzed with. Untrusted input: strict, bounded, and all paths stay inside the manifest's directory. Format and method: docs/benchmarks.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "name",
+    "synthetic",
+    "signalsAsOf",
+    "outcomeWindow",
+    "labelSource",
+    "cases"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "synthetic": {
+      "type": "boolean",
+      "description": "true for test fixtures: every result then says its numbers are not evidence."
+    },
+    "signalsAsOf": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "The date the EPSS and KEV data were fixed at. Signal files dated later are refused (leakage guard)."
+    },
+    "outcomeWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "to": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        }
+      },
+      "description": "Outcomes are observed in this window; from must not be before signalsAsOf and to must be after from."
+    },
+    "labelSource": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "description": "How the ground truth was obtained."
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "split",
+          "path",
+          "advisories",
+          "labels"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{1,64}$"
+          },
+          "split": {
+            "enum": [
+              "dev",
+              "test"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 260,
+            "description": "Relative to the manifest's directory; may not leave it or pass through a symbolic link."
+          },
+          "advisories": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 260,
+            "description": "Relative to the manifest's directory; may not leave it or pass through a symbolic link."
+          },
+          "epss": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 260,
+            "description": "Relative to the manifest's directory; may not leave it or pass through a symbolic link."
+          },
+          "kev": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 260,
+            "description": "Relative to the manifest's directory; may not leave it or pass through a symbolic link."
+          },
+          "symbols": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 260,
+            "description": "Relative to the manifest's directory; may not leave it or pass through a symbolic link."
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 260,
+            "description": "Relative to the manifest's directory; may not leave it or pass through a symbolic link."
+          },
+          "ecosystem": {
+            "enum": [
+              "nuget",
+              "npm"
+            ]
+          },
+          "entrypoints": {
+            "enum": [
+              "auto",
+              "public-api",
+              "none"
+            ]
+          },
+          "entrypointNames": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+            }
+          },
+          "labels": {
+            "type": "array",
+            "maxItems": 100000,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "advisory",
+                "package",
+                "exploited"
+              ],
+              "properties": {
+                "advisory": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                },
+                "package": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+                },
+                "exploited": {
+                  "type": "boolean"
+                },
+                "reachable": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "description": "Ground truth for one finding. advisory is an advisory id or one of its aliases; package is the package id. exploited: exploited in the wild during the outcome window. reachable: the vulnerable code is truly reachable from the project (null: not established)."
+            }
+          }
+        },
+        "description": "One project analysis. source, entrypoints and entrypointNames only apply together with symbols."
+      }
+    }
+  }
+}
