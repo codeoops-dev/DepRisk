@@ -19,12 +19,20 @@
       "type": "string",
       "minLength": 1
     },
+    "language": {
+      "description": "The language of the sources. javascript covers JavaScript and TypeScript (ADR 0019).",
+      "enum": [
+        "csharp",
+        "javascript"
+      ],
+      "default": "csharp"
+    },
     "entrypoints": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "mode": {
-          "description": "auto: Main, top-level statements, controllers, hosted services. public-api: public members of public types (libraries). none: only 'explicit'.",
+          "description": "auto: C#: Main, top-level statements, controllers, hosted services. JavaScript/TypeScript: modules that nothing imports with their exports, and decorated classes. public-api: public members of public types, or everything exported (libraries). none: only 'explicit'.",
           "enum": [
             "auto",
             "public-api",
@@ -33,7 +41,7 @@
           "default": "auto"
         },
         "explicit": {
-          "description": "Namespace.Type.Method (all overloads) or Namespace.Type.* (every member of the type), added to the mode's entrypoints.",
+          "description": "C#: Namespace.Type.Method (all overloads) or Namespace.Type.* (every member of the type). JavaScript/TypeScript: a function id as reported in the result (path/to/file.js::name, path/to/file.ts::Class.method) or path/to/file.js::* (every function of the file). Added to the mode's entrypoints.",
           "type": "array",
           "items": {
             "type": "string",
@@ -60,13 +68,22 @@
             "type": "string"
           },
           "symbols": {
-            "description": "Namespace.Type.Member, Namespace.Type.#ctor, or Namespace.Type.* (any member, including constructors).",
+            "description": "C#: Namespace.Type.Member, Namespace.Type.#ctor, or Namespace.Type.* (any member, including constructors). JavaScript/TypeScript: package::path (for example lodash::template, @scope/pkg::Parser.parse, pkg::default), package::* (any use of the package), or package::Type.* (any member, and constructing it).",
             "type": "array",
             "maxItems": 10000,
             "items": {
               "type": "string",
-              "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*\\.([A-Za-z_][A-Za-z0-9_]*|\\*|#ctor)$",
-              "maxLength": 512
+              "maxLength": 512,
+              "oneOf": [
+                {
+                  "description": "C#",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*\\.([A-Za-z_][A-Za-z0-9_]*|\\*|#ctor)$"
+                },
+                {
+                  "description": "JavaScript/TypeScript",
+                  "pattern": "^[A-Za-z0-9@_~-][A-Za-z0-9@._~/-]*::(\\*|[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*(\\.\\*)?)$"
+                }
+              ]
             }
           },
           "complete": {

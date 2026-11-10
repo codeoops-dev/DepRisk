@@ -3,6 +3,8 @@
 
 mod analyze;
 mod discover;
+mod js;
+mod jsflow;
 mod program;
 mod protocol;
 mod reach;
@@ -63,6 +65,12 @@ pub fn execute(request: &Request) -> Result<Output, String> {
     }
     if !matches!(request.entrypoints.mode.as_str(), "auto" | "public-api" | "none") {
         return Err(format!("unknown entrypoints mode '{}'", safe(&request.entrypoints.mode)));
+    }
+    if request.language == "javascript" {
+        return jsflow::execute(request);
+    }
+    if request.language != "csharp" {
+        return Err(format!("unknown language '{}' (supported: csharp, javascript)", safe(&request.language)));
     }
     let index = targets::TargetIndex::build(&request.targets)?;
     let root = Path::new(&request.root);
@@ -126,7 +134,8 @@ pub fn execute(request: &Request) -> Result<Output, String> {
     let prog = program::Program::collect(&parsed);
     let graph = analyze::analyze(&prog, &parsed, &index);
     let entries = reach::entrypoints(&prog, &request.entrypoints, &mut diagnostics);
-    let results = reach::label_targets(&prog, &parsed, &graph, &index, &request.targets, &entries, &reach::Completeness { incomplete });
+    let names = reach::CsNames { prog: &prog, parsed: &parsed };
+    let results = reach::label_targets(&names, &graph, &index, &request.targets, &entries, &reach::Completeness { incomplete });
 
     stats.types = prog.types.len();
     stats.methods = prog.methods.len();
@@ -156,7 +165,7 @@ pub fn execute(request: &Request) -> Result<Output, String> {
 
 /// Parses `src`, giving up (None) once `timeout` has passed. tree-sitter reports progress while it parses; the callback is
 /// where the deadline is enforced (this replaces the timeout setter that tree-sitter 0.26 removed).
-fn parse_with_deadline(parser: &mut tree_sitter::Parser, src: &str, timeout: std::time::Duration) -> Option<tree_sitter::Tree> {
+pub fn parse_with_deadline(parser: &mut tree_sitter::Parser, src: &str, timeout: std::time::Duration) -> Option<tree_sitter::Tree> {
     let bytes = src.as_bytes();
     let deadline = std::time::Instant::now() + timeout;
     let mut expired = |_: &tree_sitter::ParseState| {

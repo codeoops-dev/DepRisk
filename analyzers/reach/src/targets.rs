@@ -48,7 +48,18 @@ pub fn validate_symbol(symbol: &str) -> Result<(), String> {
 }
 
 impl TargetIndex {
+    /// The index for C# symbols (`Namespace.Type.Member`).
     pub fn build(targets: &[Target]) -> Result<TargetIndex, String> {
+        TargetIndex::build_with(targets, |symbol| {
+            validate_symbol(symbol)?;
+            let (type_fq, last) = symbol.rsplit_once('.').expect("validated");
+            Ok((type_fq.to_string(), if last == "*" { None } else { Some(last.to_string()) }))
+        })
+    }
+
+    /// The index for any language: `split` validates a symbol and splits it into its owner (the C# type, the JavaScript module and
+    /// path up to the last member) and the member (`None` for a wildcard).
+    pub fn build_with(targets: &[Target], split: impl Fn(&str) -> Result<(String, Option<String>), String>) -> Result<TargetIndex, String> {
         if targets.len() > MAX_TARGETS {
             return Err(format!("more than {MAX_TARGETS} targets"));
         }
@@ -58,21 +69,19 @@ impl TargetIndex {
                 return Err(format!("target {t} lists more than {MAX_SYMBOLS_PER_TARGET} symbols"));
             }
             for symbol in &target.symbols {
-                validate_symbol(symbol)?;
+                let (type_fq, member) = split(symbol)?;
                 let i = match index.by_text.get(symbol) {
                     Some(&i) => i,
                     None => {
-                        let (type_fq, last) = symbol.rsplit_once('.').expect("validated");
-                        let member = if last == "*" { None } else { Some(last.to_string()) };
                         let i = index.syms.len();
                         index.syms.push(Sym {
                             text: symbol.clone(),
-                            type_fq: type_fq.to_string(),
+                            type_fq: type_fq.clone(),
                             member: member.clone(),
                             targets: Vec::new(),
                         });
                         index.by_text.insert(symbol.clone(), i);
-                        index.by_type.entry(type_fq.to_string()).or_default().push(i);
+                        index.by_type.entry(type_fq).or_default().push(i);
                         match member {
                             Some(m) => index.by_member.entry(m).or_default().push(i),
                             None => index.wildcards.push(i),

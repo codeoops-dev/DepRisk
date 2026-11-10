@@ -1,6 +1,6 @@
 # ADR 0012: The reachability analyzer for C#
 
-- **Status:** Accepted (analyzer and protocol; the CLI integration follows in the next slice)
+- **Status:** Accepted (analyzer and protocol; the CLI integration follows in the next slice). JavaScript and TypeScript: ADR 0019
 - **Date:** 2026-11-04
 
 ## Context

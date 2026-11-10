@@ -11,6 +11,9 @@ pub struct Request {
     pub schema_version: u32,
     /// Directory with the sources. Everything below it is analyzed as one program.
     pub root: String,
+    /// `csharp` (the default) or `javascript` (JavaScript and TypeScript, ADR 0019).
+    #[serde(default = "default_language")]
+    pub language: String,
     #[serde(default)]
     pub entrypoints: EntrypointSpec,
     pub targets: Vec<Target>,
@@ -21,8 +24,9 @@ pub struct Request {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct EntrypointSpec {
-    /// `auto` (Main, top-level statements, controllers, hosted services), `public-api` (public members of public types:
-    /// for libraries), or `none` (only `explicit`).
+    /// `auto` (C#: Main, top-level statements, controllers, hosted services; JavaScript: modules nobody imports, with their
+    /// exports, and decorated classes), `public-api` (public members of public types, or everything exported: for libraries), or
+    /// `none` (only `explicit`).
     #[serde(default = "default_mode")]
     pub mode: String,
     /// Fully qualified method names (`Namespace.Type.Method`; all overloads), added to the mode's entrypoints.
@@ -36,6 +40,10 @@ impl Default for EntrypointSpec {
     }
 }
 
+fn default_language() -> String {
+    "csharp".to_string()
+}
+
 fn default_mode() -> String {
     "auto".to_string()
 }
@@ -45,7 +53,8 @@ fn default_mode() -> String {
 pub struct Target {
     /// Opaque key the result is reported under (the CLI uses advisory id and package).
     pub key: String,
-    /// `Namespace.Type.Member`, `Namespace.Type.#ctor`, or `Namespace.Type.*` (any member, including constructors).
+    /// C#: `Namespace.Type.Member`, `Namespace.Type.#ctor`, or `Namespace.Type.*` (any member, including constructors).
+    /// JavaScript: `package::path`, `package::*` (any use of the package), `package::Type.*`, `package::default` (ADR 0019).
     pub symbols: Vec<String>,
     /// True if the list is claimed to contain every public way to reach the flaw. Only then can the result be `unreachable`.
     pub complete: bool,

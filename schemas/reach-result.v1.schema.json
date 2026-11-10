@@ -36,7 +36,10 @@
       }
     },
     "language": {
-      "const": "csharp"
+      "enum": [
+        "csharp",
+        "javascript"
+      ]
     },
     "sourceDigest": {
       "description": "SHA-256 over the lines '<sha256 of the file>  <relative path>' of every source file that was read, in path order: the identity of exactly what was analyzed.",
@@ -114,7 +117,10 @@
               "hosted-service",
               "public-api",
               "explicit",
-              "unmodeled"
+              "unmodeled",
+              "module",
+              "export",
+              "framework"
             ]
           }
         }

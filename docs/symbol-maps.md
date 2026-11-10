@@ -54,6 +54,10 @@ So an incomplete list can still *prove reachability* but can never *prove unreac
 - Subclassing: a project type that derives from a type you list with `.*` is treated as using it.
 - Write the `source` so that someone else can check the claim.
 
+## JavaScript and TypeScript symbols
+
+The analyzer reads JavaScript and TypeScript too (ADR 0019). Its symbols name a package and a member path instead of a C# namespace: `lodash::template`, `@scope/pkg::Parser.parse`, `pkg::default` (the default export, or the module value itself for a CommonJS package), `pkg::Type.*` (any member of the exported type, and constructing or extending it), and `pkg::*` (any use of the package, including a bare import). A use of a subpath of a package (`lodash/fp/map`) matches every symbol of the package, because which member it stands for is not known. `complete` means the same as for C#. Symbol maps for npm packages in the CLI (the `reach`, `rank`, `ci`, `explain`, and `vex` commands) are the next slice; until then the symbols are used by running the analyzer directly.
+
 ## Where the data does not apply
 
 - **Transitive-only packages.** If the package is not referenced directly by any project, the application cannot be shown *not* to reach it through the code of the packages that use it, and that code is not analyzed. A path from the application's own code is still `reachable`; absence of one is `unknown` (`transitive-package-code-not-analyzed`), whatever `complete` says.

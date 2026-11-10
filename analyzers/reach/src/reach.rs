@@ -151,21 +151,42 @@ fn kind_name(k: EdgeKind) -> &'static str {
     }
 }
 
-fn path_to(prog: &Program, parsed: &[Parsed], graph: &Graph, targets: &TargetIndex, s: &Search, sym: usize) -> Vec<PathEdge> {
+/// What the labeling needs to know about the methods (or functions) of a graph, whatever language they come from.
+pub trait Names {
+    fn method_id(&self, m: usize) -> String;
+    fn method_file(&self, m: usize) -> Option<String>;
+}
+
+/// The names of the C# program.
+pub struct CsNames<'a> {
+    pub prog: &'a Program,
+    pub parsed: &'a [Parsed],
+}
+
+impl Names for CsNames<'_> {
+    fn method_id(&self, m: usize) -> String {
+        self.prog.methods[m].id.clone()
+    }
+
+    fn method_file(&self, m: usize) -> Option<String> {
+        self.parsed.get(self.prog.methods[m].file).map(|p| p.rel.clone())
+    }
+}
+
+fn path_to(names: &dyn Names, graph: &Graph, targets: &TargetIndex, s: &Search, sym: usize) -> Vec<PathEdge> {
     let mut edges: Vec<PathEdge> = Vec::new();
     let mut cur = s.sym_parent[sym];
     let mut last_to = targets.syms[sym].text.clone();
     while let Some((from, ei)) = cur {
         let edge = &graph.edges[from][ei];
-        let file = parsed.get(prog.methods[from].file).map(|p| p.rel.clone());
         edges.push(PathEdge {
-            from: prog.methods[from].id.clone(),
+            from: names.method_id(from),
             to: last_to.clone(),
             kind: kind_name(edge.kind),
-            file,
+            file: names.method_file(from),
             line: Some(edge.line),
         });
-        last_to = prog.methods[from].id.clone();
+        last_to = names.method_id(from);
         cur = s.method_parent[from];
     }
     edges.reverse();
@@ -181,8 +202,7 @@ pub struct Completeness {
 }
 
 pub fn label_targets(
-    prog: &Program,
-    parsed: &[Parsed],
+    names: &dyn Names,
     graph: &Graph,
     targets: &TargetIndex,
     request: &[Target],
@@ -224,12 +244,12 @@ pub fn label_targets(
         };
 
         if let Some(y) = nearest(&by_static) {
-            let p = path_to(prog, parsed, graph, targets, &by_static, y);
+            let p = path_to(names, graph, targets, &by_static, y);
             out.push(result("reachable", "static-path", p, Some(targets.syms[y].text.clone())));
             continue;
         }
         if let Some(y) = nearest(&by_all) {
-            let p = path_to(prog, parsed, graph, targets, &by_all, y);
+            let p = path_to(names, graph, targets, &by_all, y);
             out.push(result("possibly-reachable", "dynamic-path", p, Some(targets.syms[y].text.clone())));
             continue;
         }

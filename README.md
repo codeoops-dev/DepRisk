@@ -604,6 +604,7 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 | Analysis | Reachability labels in `rank` and `ci` output (JSON, table, SARIF property) with `--symbols`; shown, not used for the order | 🚧 |
 | Analysis | Reachability: JS/TS | 🗺️ |
 | Analysis | Symbol mining from fix commits | 🗺️ |
+| Analysis | JavaScript and TypeScript reachability in the analyzer (ADR 0019): ES modules and CommonJS, classes and declared types, callbacks, decorated classes, workspace packages, package symbols like `lodash::template`; conservative (`unreachable` only when nothing could hide a path). **The CLI does not send npm findings to it yet** | 🚧 |
 | Risk | Uncertainty model: `rank --model risk` gives each finding a risk distribution (seeded Monte Carlo over Reach x Exploit x Impact; mean, p50, p90, p95, cvar95) next to its baseline rank. The parameters are **uncalibrated placeholders** (shown in every result); calibration on labeled cases is still to do | 🚧 |
 | Eval | `deprisk bench`: labeled-case benchmark harness with baselines B1/B2/B3, a held-out split, a temporal leakage guard, reachability against ground truth, and calibration measures (ADR 0017). Only a synthetic smoke dataset exists; **no benchmark result has been produced yet** | 🚧 |
 | Plan | MILP optimizer with CVaR | 🗺️ |
@@ -625,7 +626,7 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 ## Roadmap
 
 - **v0.1** CLI skeleton, NuGet + npm ingest, hypergraph, advisory matching, risk ranking (CVSS+EPSS+KEV baseline), audit log, `ci` policy gate, SARIF. First pre-release: `0.1.0-alpha.1`.
-- **v0.2** Reachability (C#, JS/TS), uncertainty model, `explain`, OpenVEX export. Done in the repository, not yet in a release: C# reachability, the uncertainty model with placeholder parameters, `explain`, `vex`. The benchmark harness (`deprisk bench`, ADR 0017) is also in the repository, without a real dataset. Still to do: the JS/TS analyzer, shipping the analyzer with the tool, real symbol data, and a real labeled dataset. `deprisk bench calibrate` (ADR 0018) can fit the Reach factor from such a dataset; Exploit and Impact are still placeholders.
+- **v0.2** Reachability (C#, JS/TS), uncertainty model, `explain`, OpenVEX export. Done in the repository, not yet in a release: C# reachability, the uncertainty model with placeholder parameters, `explain`, `vex`. The benchmark harness (`deprisk bench`, ADR 0017) is also in the repository, without a real dataset. The JS/TS analyzer (ADR 0019) is in the analyzer; wiring it into the CLI for npm is the next step. Still to do: npm in `reach`, `rank`, `ci`, `explain` and `vex`, shipping the analyzer with the tool, real symbol data, and a real labeled dataset. `deprisk bench calibrate` (ADR 0018) can fit the Reach factor from such a dataset; Exploit and Impact are still placeholders.
 - **v0.3** Optimizer (MILP + CVaR), plan format, `plan`/`apply --dry-run`.
 - **v0.4** SPARK kernel and proofs, `verify`, first published benchmark results (the harness itself is already in the repository, see v0.2).
 - **v0.5** Signed offline bundles, GitHub Action (the `ci` command and SARIF output already ship with v0.1).
