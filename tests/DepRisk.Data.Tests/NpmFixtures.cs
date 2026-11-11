@@ -14,6 +14,9 @@ internal static class NpmFixtures
     /// <summary>A file of tests/fixtures/reach (the reachability fixtures), for example "osv/DEPRISK-EXAMPLE-0001.json".</summary>
     public static string ReadReach(string name) => ReadResource("reach/" + name.Replace('/', Path.DirectorySeparatorChar));
 
+    /// <summary>A file of tests/fixtures/reach-npm (an npm project with advisories and a symbol map), for example "symbols/npm-example.json".</summary>
+    public static string ReadReachNpm(string name) => ReadResource("reachnpm/" + name.Replace('/', Path.DirectorySeparatorChar));
+
     private static string ReadResource(string logicalName)
     {
         using Stream stream = typeof(NpmFixtures).Assembly.GetManifestResourceStream(logicalName)

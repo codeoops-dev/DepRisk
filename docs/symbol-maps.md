@@ -54,9 +54,22 @@ So an incomplete list can still *prove reachability* but can never *prove unreac
 - Subclassing: a project type that derives from a type you list with `.*` is treated as using it.
 - Write the `source` so that someone else can check the claim.
 
-## JavaScript and TypeScript symbols
+## npm packages (JavaScript and TypeScript)
 
-The analyzer reads JavaScript and TypeScript too (ADR 0019). Its symbols name a package and a member path instead of a C# namespace: `lodash::template`, `@scope/pkg::Parser.parse`, `pkg::default` (the default export, or the module value itself for a CommonJS package), `pkg::Type.*` (any member of the exported type, and constructing or extending it), and `pkg::*` (any use of the package, including a bare import). A use of a subpath of a package (`lodash/fp/map`) matches every symbol of the package, because which member it stands for is not known. `complete` means the same as for C#. Symbol maps for npm packages in the CLI (the `reach`, `rank`, `ci`, `explain`, and `vex` commands) are the next slice; until then the symbols are used by running the analyzer directly.
+For npm projects the map's `language` is `"javascript"` (a directory may hold maps of both languages: each applies to its own ecosystem, and the result says when a map for the other language was ignored). An entry is the same as for NuGet: `advisory`, `package` (the npm name, `lodash` or `@scope/pkg`), `symbols`, `complete`, `source`. The symbols name members of what the package exports:
+
+| Symbol | Meaning |
+|---|---|
+| `template` | the export `template` of the package (`require('pkg').template`, `import { template } from 'pkg'`) |
+| `Parser.parse` | a method of an exported type, through an instance or a subclass |
+| `Parser.*` | any member of the exported type, and constructing or extending it |
+| `default` | the default export, or the module value itself for a CommonJS package (`require('pkg')()`) |
+| `*` | any use of the package, including a bare `import 'pkg'` |
+| `lodash/fp::map` | a member of a subpath module, written in full; the part before `::` must be the entry's package or a subpath of it |
+
+A symbol with no `::` is read relative to the entry's package; the analyzer is asked about `package::symbol` (ADR 0019). A use of a subpath of a package (`lodash/fp/map`) that is not listed matches every symbol of the package, because which member it stands for is not known. `complete` means the same as for NuGet: only `true` lets a missing path become `unreachable`. For npm that also needs the package to be a direct dependency (of the root package or of a workspace member): a package that is only a dependency of a dependency is `unknown` (`transitive-package-code-not-analyzed`), whatever the analyzer found, as for NuGet.
+
+`--entrypoint` names a function by its id in the result (`src/app.js::handler`, `src/app.ts::Svc.run`, or `src/app.js::*` for every function of a file) instead of a C# method. By default (`auto`) the entry points are the modules nobody imports with what they export, and decorated classes; for a library use `--entrypoints public-api`.
 
 ## Where the data does not apply
 

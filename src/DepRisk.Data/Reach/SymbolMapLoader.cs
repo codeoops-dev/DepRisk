@@ -140,9 +140,11 @@ public static class SymbolMapLoader
                 throw new InvalidInputException($"{display}: unsupported schemaVersion {schemaVersion} (this version reads 1).");
             }
 
-            if (!root.TryGetProperty("language", out JsonElement language) || language.ValueKind != JsonValueKind.String || language.GetString() != "csharp")
+            string? languageName = root.TryGetProperty("language", out JsonElement language) && language.ValueKind == JsonValueKind.String ? language.GetString() : null;
+
+            if (!SymbolLanguages.IsKnown(languageName))
             {
-                throw new InvalidInputException($"{display}: 'language' must be \"csharp\" (the only analyzer there is).");
+                throw new InvalidInputException($"{display}: 'language' must be \"csharp\" or \"javascript\" (JavaScript and TypeScript).");
             }
 
             if (!root.TryGetProperty("entries", out JsonElement entries) || entries.ValueKind != JsonValueKind.Array)
@@ -160,7 +162,7 @@ public static class SymbolMapLoader
                     throw new InvalidInputException($"{display}: more than {MaxEntries} entries (limit).");
                 }
 
-                sets.Add(ReadEntry(entry, display, index));
+                sets.Add(ReadEntry(entry, display, index, languageName!));
                 index++;
             }
 
@@ -168,7 +170,7 @@ public static class SymbolMapLoader
         }
     }
 
-    private static SymbolSet ReadEntry(JsonElement entry, string display, int index)
+    private static SymbolSet ReadEntry(JsonElement entry, string display, int index, string languageName)
     {
         string where = $"{display}: entry {index}";
 
@@ -178,7 +180,14 @@ public static class SymbolMapLoader
         }
 
         string advisory = RequiredString(entry, "advisory", where, 100, IsAdvisoryChar);
-        string package = RequiredString(entry, "package", where, 200, IsPackageChar);
+        bool javascript = languageName == SymbolLanguages.JavaScript;
+        string package = RequiredString(entry, "package", where, 200, javascript ? IsJsPackageChar : IsPackageChar);
+
+        if (javascript && !SymbolSyntax.IsValidJsPackage(package))
+        {
+            throw new InvalidInputException($"{where}: invalid 'package' (an npm package name such as lodash or @scope/pkg).");
+        }
+
         string source = RequiredString(entry, "source", where, 500, c => !char.IsControl(c));
 
         // Required on purpose: whoever writes a symbol list must decide whether it claims to be complete. There is no default.
@@ -198,13 +207,17 @@ public static class SymbolMapLoader
         {
             string? text = symbol.ValueKind == JsonValueKind.String ? symbol.GetString() : null;
 
-            if (!SymbolSyntax.IsValid(text))
+            string? composed = javascript ? SymbolSyntax.ComposeJs(package, text) : (SymbolSyntax.IsValid(text) ? text : null);
+
+            if (composed is null)
             {
                 throw new InvalidInputException(
-                    $"{where}: '{SafeText.Clean(text ?? "(not a string)", 80)}' is not a valid symbol (Namespace.Type.Member, Namespace.Type.#ctor, or Namespace.Type.*).");
+                    javascript
+                        ? $"{where}: '{SafeText.Clean(text ?? "(not a string)", 80)}' is not a valid symbol for '{SafeText.Clean(package, 60)}' (a path such as parse, Parser.parse, Parser.*, default, or *; or package::path with the package or a subpath of it)."
+                        : $"{where}: '{SafeText.Clean(text ?? "(not a string)", 80)}' is not a valid symbol (Namespace.Type.Member, Namespace.Type.#ctor, or Namespace.Type.*).");
             }
 
-            list.Add(text!);
+            list.Add(composed);
 
             if (list.Count > MaxSymbolsPerEntry)
             {
@@ -217,7 +230,7 @@ public static class SymbolMapLoader
             throw new InvalidInputException($"{where}: 'symbols' is empty. An entry without symbols says nothing; remove it.");
         }
 
-        return new SymbolSet(advisory, package, list.Distinct(StringComparer.Ordinal).OrderBy(s => s, StringComparer.Ordinal).ToList(), complete.GetBoolean(), [source]);
+        return new SymbolSet(advisory, package, list.Distinct(StringComparer.Ordinal).OrderBy(s => s, StringComparer.Ordinal).ToList(), complete.GetBoolean(), [source], languageName);
     }
 
     private static string RequiredString(JsonElement entry, string name, string where, int maxLength, Func<char, bool> allowed)
@@ -238,4 +251,6 @@ public static class SymbolMapLoader
     private static bool IsAdvisoryChar(char c) => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or ':' or '-';
 
     private static bool IsPackageChar(char c) => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-';
+
+    private static bool IsJsPackageChar(char c) => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-' or '@' or '/' or '~';
 }

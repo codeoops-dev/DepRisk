@@ -24,7 +24,7 @@ public sealed record ReachOutcome(ReachabilityResult Result, string InputsDigest
 /// asks the analyzer whether those symbols can be reached from the application's entrypoints, and combines the answers. See
 /// ADR 0013. Rules that matter: a finding without symbols is "unknown", never "unreachable"; a package that is only a transitive
 /// dependency can be "reachable" if the application calls it directly, but its own code is not analyzed, so "unreachable" becomes
-/// "unknown"; an ecosystem without an analyzer is "unknown".
+/// "unknown"; an ecosystem without an analyzer is "unknown". NuGet is analyzed as C#, npm as JavaScript and TypeScript (ADR 0020).
 /// </summary>
 public static class ReachService
 {
@@ -36,7 +36,22 @@ public static class ReachService
         FindingsOutcome matched = FindingsService.Match(options.ScanPath, options.AdvisoriesPath, tool, options.Strict, options.Ecosystem);
         LoadedSymbolMaps maps = SymbolMapLoader.Load(options.SymbolsPath);
         FindingsResult findings = matched.Result;
-        bool analyzable = findings.Ecosystem == Ecosystem.NuGet.Id;
+        string? language = LanguageOf(findings.Ecosystem);
+        bool analyzable = language is not null;
+
+        if (analyzable)
+        {
+            foreach (string name in options.ExplicitEntrypoints)
+            {
+                if (!ExplicitEntrypointIsValid(language!, name))
+                {
+                    throw new InvalidInputException(
+                        language == SymbolLanguages.JavaScript
+                            ? $"--entrypoint '{SafeText.Clean(name, 80)}' is not a function id for JavaScript or TypeScript (path/to/file.js::name, path/to/file.ts::Class.method, or path/to/file.js::* for every function of a file)."
+                            : $"--entrypoint '{SafeText.Clean(name, 80)}' is not a method name (Namespace.Type.Method, or Namespace.Type.* for every member).");
+                }
+            }
+        }
 
         // One question per advisory and package, whatever the versions.
         Dictionary<string, SymbolSet> setsByKey = new(StringComparer.Ordinal);
@@ -44,7 +59,7 @@ public static class ReachService
 
         foreach (Finding finding in findings.Findings)
         {
-            SymbolSet? set = maps.Map.Find([finding.Id, .. finding.Aliases], finding.Package.Id);
+            SymbolSet? set = language is null ? null : maps.Map.Find([finding.Id, .. finding.Aliases], finding.Package.Id, language);
             string key = $"{finding.Id}|{finding.Package.Id}";
 
             if (set is not null)
@@ -70,7 +85,7 @@ public static class ReachService
 
             string root = ResolveSourceRoot(options);
             analyzerSha = Digest.Sha256Hex(File.ReadAllBytes(executable));
-            string request = ReachProtocol.BuildRequest(root, options.EntrypointMode, options.ExplicitEntrypoints, targets);
+            string request = ReachProtocol.BuildRequest(root, options.EntrypointMode, options.ExplicitEntrypoints, targets, language!);
 
             AnalyzerRun run = process.Run(executable, request, options.Timeout);
 
@@ -80,7 +95,7 @@ public static class ReachService
                 throw new AnalyzerException($"the analyzer failed (exit code {run.ExitCode}): {SafeText.Clean(firstLine, 200)}");
             }
 
-            output = ReachProtocol.ParseResult(run.StdOut, targets.Select(t => t.Key).ToList());
+            output = ReachProtocol.ParseResult(run.StdOut, targets.Select(t => t.Key).ToList(), language!);
             analyzerInfo = new ReachAnalyzerInfo(output.AnalyzerName, output.AnalyzerVersion, analyzerSha);
         }
 
@@ -99,6 +114,11 @@ public static class ReachService
             .ToList();
 
         List<string> diagnostics = [];
+
+        if (language is not null && maps.Map.CountFor(language) == 0 && maps.Map.Count > 0)
+        {
+            diagnostics.Add($"The symbol maps hold no entries for {(language == SymbolLanguages.JavaScript ? "JavaScript and TypeScript (npm)" : "C# (NuGet)")}: entries for the other language do not apply to this project.");
+        }
 
         if (output is not null)
         {
@@ -136,6 +156,15 @@ public static class ReachService
 
         return new ReachOutcome(result, inputs, matched);
     }
+
+    /// <summary>The analyzer's language for an ecosystem; null where there is no analyzer.</summary>
+    public static string? LanguageOf(string ecosystemId) =>
+        ecosystemId == Ecosystem.NuGet.Id ? SymbolLanguages.CSharp : ecosystemId == Ecosystem.Npm.Id ? SymbolLanguages.JavaScript : null;
+
+    private static bool ExplicitEntrypointIsValid(string language, string name) =>
+        language == SymbolLanguages.JavaScript
+            ? SymbolSyntax.IsValidJsFunctionId(name)
+            : SymbolSyntax.IsValid(name) && !name.EndsWith(".#ctor", StringComparison.Ordinal);
 
     private static string ResolveSourceRoot(ReachOptions options)
     {

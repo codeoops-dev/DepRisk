@@ -507,3 +507,48 @@ jobs:
           assert any("fitted on the dev split of this very dataset" in w for w in dev["warnings"]), dev["warnings"]
           print("bench calibrate: valid, deterministic, held-out evaluation unflagged, same-data evaluation flagged")
           PY
+
+      # npm end to end (S13b): the CLI sends an npm project to the real analyzer as JavaScript and reads the labels back, through
+      # reach, rank, and vex. The advisories, the symbol map and the project are synthetic fixtures (tests/fixtures/reach-npm).
+      - name: reach on npm (real analyzer)
+        run: |
+          cli="dotnet run --no-build -c Release --project src/DepRisk.Cli --"
+          analyzer="analyzers/reach/target/release/deprisk-reach"
+          f="tests/fixtures/reach-npm"
+          common="$f --advisories $f/osv --symbols $f/symbols --analyzer $analyzer"
+          python3 -m check_jsonschema --schemafile schemas/symbol-map.v1.schema.json $f/symbols/npm-example.json
+          $cli reach $common --format json --out reach-npm-1.json
+          $cli reach $common --format json --out reach-npm-2.json
+          cmp reach-npm-1.json reach-npm-2.json
+          python3 -m check_jsonschema --schemafile schemas/reachability.v1.schema.json reach-npm-1.json
+          $cli rank $common --model risk --format json --out rank-npm.json
+          python3 -m check_jsonschema --schemafile schemas/ranking.v1.schema.json rank-npm.json
+          $cli vex $common --product pkg:npm/demo-app@1.0.0 --author ci --format json --out vex-npm.json
+          python3 - <<'PY'
+          import json
+          reach = json.load(open("reach-npm-1.json", encoding="utf-8"))
+          assert reach["ecosystem"] == "npm", reach["ecosystem"]
+          by = {f["finding"]["id"]: f["reachability"] for f in reach["findings"]}
+          assert by["DEPRISK-NPM-0001"]["label"] == "reachable" and by["DEPRISK-NPM-0001"]["symbol"] == "example-lib::parse", by["DEPRISK-NPM-0001"]
+          assert by["DEPRISK-NPM-0001"]["path"][-1]["to"] == "example-lib::parse", by["DEPRISK-NPM-0001"]["path"]
+          assert by["DEPRISK-NPM-0002"]["label"] == "unreachable", by["DEPRISK-NPM-0002"]
+          assert (by["DEPRISK-NPM-0003"]["label"], by["DEPRISK-NPM-0003"]["reason"]) == ("unknown", "transitive-package-code-not-analyzed"), by["DEPRISK-NPM-0003"]
+          assert (by["DEPRISK-NPM-0004"]["label"], by["DEPRISK-NPM-0004"]["reason"]) == ("unknown", "symbol-list-incomplete"), by["DEPRISK-NPM-0004"]
+          rank = json.load(open("rank-npm.json", encoding="utf-8"))
+          assert {f["id"]: f["reachability"]["label"] for f in rank["findings"]}["DEPRISK-NPM-0001"] == "reachable"
+          vex = json.load(open("vex-npm.json", encoding="utf-8"))
+          status = {s["vulnerability"]["name"]: s["status"] for s in vex["statements"]}
+          assert status == {"DEPRISK-NPM-0001": "affected", "DEPRISK-NPM-0002": "not_affected", "DEPRISK-NPM-0003": "under_investigation", "DEPRISK-NPM-0004": "under_investigation"}, status
+          print("npm reach, rank and vex:", {k: v["label"] for k, v in by.items()})
+          PY
+          # A symbol map for the other language does not apply and is said so.
+          mkdir -p csharp-only
+          cp tests/fixtures/reach/symbols/example.json csharp-only/example.json
+          $cli reach $f --advisories $f/osv --symbols csharp-only --analyzer $analyzer --format json --out reach-npm-csharp-map.json
+          python3 - <<'PY'
+          import json
+          r = json.load(open("reach-npm-csharp-map.json", encoding="utf-8"))
+          assert all(f["reachability"]["label"] == "unknown" for f in r["findings"]), r["summary"]
+          assert any("no entries for JavaScript and TypeScript (npm)" in d for d in r["diagnostics"]), r["diagnostics"]
+          print("a C# symbol map does not apply to npm")
+          PY

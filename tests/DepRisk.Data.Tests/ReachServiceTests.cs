@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DepRisk.Core;
 using DepRisk.Core.Model;
 using DepRisk.Core.Reach;
@@ -272,8 +273,7 @@ public sealed class ReachServiceTests : IDisposable
         Assert.Contains("source directory not found", Assert.Throws<InvalidInputException>(() => Run(Options(source: Path.Combine(_root, "nope")), fake)).Message);
     }
 
-    [Fact]
-    public void Npm_has_no_analyzer_yet_and_says_so_without_running_one()
+    private string NpmProject(string symbolMap)
     {
         string npm = Path.Combine(_root, "npm");
         Directory.CreateDirectory(npm);
@@ -284,18 +284,58 @@ public sealed class ReachServiceTests : IDisposable
             { "id": "T-1", "affected": [ { "package": { "ecosystem": "npm", "name": "ms" }, "ranges": [ { "type": "SEMVER", "events": [ { "introduced": "0" }, { "fixed": "2.1.3" } ] } ] } ] }
             """);
         string symbols = Path.Combine(_root, "npm-symbols.json");
-        File.WriteAllText(symbols, """
+        File.WriteAllText(symbols, symbolMap);
+        return symbols;
+    }
+
+    [Fact]
+    public void A_csharp_symbol_map_does_not_apply_to_an_npm_project_and_no_analyzer_is_run()
+    {
+        string symbols = NpmProject("""
             { "schemaVersion": 1, "language": "csharp", "entries": [ { "advisory": "T-1", "package": "ms", "symbols": ["A.B.C"], "complete": true, "source": "test" } ] }
             """);
         FakeAnalyzer fake = Standard();
 
-        ReachOutcome outcome = Run(Options(scan: npm, symbols: symbols) with { AdvisoriesPath = osv }, fake);
+        ReachOutcome outcome = Run(Options(scan: Path.Combine(_root, "npm"), symbols: symbols) with { AdvisoriesPath = Path.Combine(_root, "osv-npm") }, fake);
 
         Assert.Equal(0, fake.Calls);
         Assert.Equal("npm", outcome.Result.Ecosystem);
         ReachVerdict verdict = Assert.Single(outcome.Result.Findings).Reachability;
         Assert.Equal(ReachLabels.Unknown, verdict.Label);
-        Assert.Equal(ReachLabels.NoAnalyzerForEcosystem, verdict.Reason);
+        Assert.Equal(ReachLabels.NoSymbols, verdict.Reason);
+        Assert.Contains(outcome.Result.Diagnostics, d => d.Contains("no entries for JavaScript and TypeScript (npm)", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void An_npm_project_is_analyzed_as_javascript_with_the_symbols_of_its_map()
+    {
+        string symbols = NpmProject("""
+            { "schemaVersion": 1, "language": "javascript", "entries": [ { "advisory": "T-1", "package": "ms", "symbols": ["parse", "Clock.*"], "complete": true, "source": "test" } ] }
+            """);
+        FakeAnalyzer fake = new((_, request) => FakeAnalyzer.Result(request, "reachable", "static-path", "ms::parse").Replace("\"language\":\"csharp\"", "\"language\":\"javascript\"", StringComparison.Ordinal));
+
+        ReachOutcome outcome = Run(Options(scan: Path.Combine(_root, "npm"), symbols: symbols) with { AdvisoriesPath = Path.Combine(_root, "osv-npm") }, fake);
+
+        Assert.Equal(1, fake.Calls);
+        using JsonDocument request = JsonDocument.Parse(fake.LastRequest!);
+        Assert.Equal("javascript", request.RootElement.GetProperty("language").GetString());
+        Assert.Equal(["ms::Clock.*", "ms::parse"], request.RootElement.GetProperty("targets")[0].GetProperty("symbols").EnumerateArray().Select(e => e.GetString()).ToArray());
+        ReachVerdict verdict = Assert.Single(outcome.Result.Findings).Reachability;
+        Assert.Equal(ReachLabels.Reachable, verdict.Label);
+        Assert.Equal("ms::parse", verdict.Symbol);
+    }
+
+    [Fact]
+    public void Explicit_entry_points_are_checked_against_the_language_of_the_project()
+    {
+        string symbols = NpmProject("""
+            { "schemaVersion": 1, "language": "javascript", "entries": [ { "advisory": "T-1", "package": "ms", "symbols": ["parse"], "complete": true, "source": "test" } ] }
+            """);
+        ReachOptions npm = Options(scan: Path.Combine(_root, "npm"), symbols: symbols) with { AdvisoriesPath = Path.Combine(_root, "osv-npm") };
+
+        Assert.Throws<InvalidInputException>(() => Run(npm with { ExplicitEntrypoints = ["Sample.Program.Main"] }, Standard()));
+        Run(npm with { ExplicitEntrypoints = ["src/app.js::main"] }, new FakeAnalyzer((_, request) => FakeAnalyzer.Result(request, "unreachable", "no-path").Replace("\"language\":\"csharp\"", "\"language\":\"javascript\"", StringComparison.Ordinal)));
+        Assert.Throws<InvalidInputException>(() => Run(Options() with { ExplicitEntrypoints = ["src/app.js::main"] }, Standard()));
     }
 
     [Fact]

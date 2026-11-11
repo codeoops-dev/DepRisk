@@ -80,16 +80,20 @@ internal sealed class ReachArgs
 
         foreach (string name in ExplicitEntrypoints)
         {
-            if (!SymbolSyntax.IsValid(name) || name.EndsWith(".#ctor", StringComparison.Ordinal))
+            // Which form is right depends on the ecosystem, which is known once the project is read; the service checks that.
+            bool csharp = SymbolSyntax.IsValid(name) && !name.EndsWith(".#ctor", StringComparison.Ordinal);
+
+            if (!csharp && !SymbolSyntax.IsValidJsFunctionId(name))
             {
-                throw new InvalidInputException($"--entrypoint '{SafeText.Clean(name, 80)}' is not a method name (Namespace.Type.Method, or Namespace.Type.* for every member).");
+                throw new InvalidInputException(
+                    $"--entrypoint '{SafeText.Clean(name, 80)}' is not an entry point name (C#: Namespace.Type.Method or Namespace.Type.*; JavaScript and TypeScript: path/to/file.js::name or path/to/file.js::*).");
             }
         }
 
         if (Symbols is null && symbolsRequired)
         {
             throw new InvalidInputException(
-                $"'{commandName}' needs symbol maps: pass --symbols <file | directory> (docs/symbol-maps.md). OSV has no symbol data for NuGet, "
+                $"'{commandName}' needs symbol maps: pass --symbols <file | directory> (docs/symbol-maps.md). OSV has no symbol data for NuGet or npm, "
                 + "so the symbols through which a flaw is reached must come from a symbol map.");
         }
 

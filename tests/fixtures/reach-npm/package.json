@@ -1,0 +1,10 @@
+{
+  "name": "demo-app",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "example-lib": "^1.0.0",
+    "other-lib": "^2.0.0",
+    "@scope/client": "^3.0.0"
+  }
+}

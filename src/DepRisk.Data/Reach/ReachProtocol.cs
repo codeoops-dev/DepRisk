@@ -31,11 +31,17 @@ public static class ReachProtocol
 
     private static readonly JsonDocumentOptions DocumentOptions = new() { MaxDepth = 32, CommentHandling = JsonCommentHandling.Disallow };
 
-    public static string BuildRequest(string root, string entrypointMode, IReadOnlyList<string> explicitEntrypoints, IReadOnlyList<ReachTarget> targets)
+    public static string BuildRequest(
+        string root,
+        string entrypointMode,
+        IReadOnlyList<string> explicitEntrypoints,
+        IReadOnlyList<ReachTarget> targets,
+        string language = SymbolLanguages.CSharp)
     {
         var request = new
         {
             schemaVersion = SchemaVersion,
+            language,
             root,
             entrypoints = new { mode = entrypointMode, @explicit = explicitEntrypoints },
             targets = targets.Select(t => new { key = t.Key, symbols = t.Symbols, complete = t.Complete }).ToList(),
@@ -44,7 +50,7 @@ public static class ReachProtocol
         return JsonSerializer.Serialize(request, new JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
     }
 
-    public static AnalyzerOutput ParseResult(string json, IReadOnlyCollection<string> expectedKeys)
+    public static AnalyzerOutput ParseResult(string json, IReadOnlyCollection<string> expectedKeys, string expectedLanguage = SymbolLanguages.CSharp)
     {
         JsonDocument document;
 
@@ -69,9 +75,9 @@ public static class ReachProtocol
             JsonElement analyzer = Object(root, "analyzer");
             string name = Str(analyzer, "name", 64);
 
-            if (name != AnalyzerName || Str(root, "language", 16) != "csharp")
+            if (name != AnalyzerName || Str(root, "language", 16) != expectedLanguage)
             {
-                throw Invalid("not the C# reachability analyzer");
+                throw Invalid($"not the {(expectedLanguage == SymbolLanguages.CSharp ? "C#" : "JavaScript and TypeScript")} reachability analyzer");
             }
 
             string version = Str(analyzer, "version", 64);

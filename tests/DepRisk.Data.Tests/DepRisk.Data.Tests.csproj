@@ -21,6 +21,7 @@
   <ItemGroup>
     <EmbeddedResource Include="..\fixtures\npm\*.json" LogicalName="npm/%(Filename)%(Extension)" />
     <EmbeddedResource Include="..\fixtures\reach\**\*.json" LogicalName="reach/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\fixtures\reach-npm\**\*.json" LogicalName="reachnpm/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

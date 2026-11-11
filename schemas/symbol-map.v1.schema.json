@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/codeoops-dev/deprisk/schemas/symbol-map.v1.schema.json",
   "title": "DepRisk symbol map (v1)",
-  "description": "A curated list of the public entry points (symbols) through which application code reaches the flaw of an advisory in a package. Input of 'deprisk reach --symbols'. OSV carries no such data for NuGet, so it has to come from here. See docs/symbol-maps.md.",
+  "description": "A curated list of the public entry points (symbols) through which application code reaches the flaw of an advisory in a package. Input of 'deprisk reach --symbols'. OSV carries no such data for NuGet or npm, so it has to come from here. See docs/symbol-maps.md.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -15,7 +15,11 @@
       "const": 1
     },
     "language": {
-      "const": "csharp"
+      "description": "csharp: NuGet packages, analyzed as C#. javascript: npm packages, analyzed as JavaScript and TypeScript.",
+      "enum": [
+        "csharp",
+        "javascript"
+      ]
     },
     "entries": {
       "type": "array",
@@ -37,19 +41,17 @@
             "pattern": "^[A-Za-z0-9._:-]{1,100}$"
           },
           "package": {
-            "description": "The NuGet package id; matched ignoring case.",
-            "type": "string",
-            "pattern": "^[A-Za-z0-9._-]{1,200}$"
+            "description": "The package id (NuGet) or npm package name such as lodash or @scope/pkg; matched ignoring case. See 'language' for the allowed characters.",
+            "type": "string"
           },
           "symbols": {
-            "description": "Namespace.Type.Member, Namespace.Type.#ctor (constructors), or Namespace.Type.* (any member, including constructors).",
+            "description": "csharp: Namespace.Type.Member, Namespace.Type.#ctor (constructors), or Namespace.Type.* (any member, including constructors). javascript: a path relative to the entry's package (parse, Parser.parse, Parser.*, default, or * for any use of the package) or package::path where the package is the entry's package or a subpath of it (lodash/fp::map).",
             "type": "array",
             "minItems": 1,
             "maxItems": 10000,
             "items": {
               "type": "string",
-              "maxLength": 512,
-              "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*\\.([A-Za-z_][A-Za-z0-9_]*|\\*|#ctor)$"
+              "maxLength": 512
             }
           },
           "complete": {
@@ -61,6 +63,49 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 500
+          }
+        }
+      }
+    }
+  },
+  "if": {
+    "properties": {
+      "language": {
+        "const": "javascript"
+      }
+    }
+  },
+  "then": {
+    "properties": {
+      "entries": {
+        "items": {
+          "properties": {
+            "package": {
+              "pattern": "^[A-Za-z0-9@_~-][A-Za-z0-9@._~/-]{0,199}$"
+            },
+            "symbols": {
+              "items": {
+                "pattern": "^((\\*|[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*(\\.\\*)?)|[A-Za-z0-9@_~-][A-Za-z0-9@._~/-]*::(\\*|[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*(\\.\\*)?))$"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "else": {
+    "properties": {
+      "entries": {
+        "items": {
+          "properties": {
+            "package": {
+              "pattern": "^[A-Za-z0-9._-]{1,200}$"
+            },
+            "symbols": {
+              "items": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*\\.([A-Za-z_][A-Za-z0-9_]*|\\*|#ctor)$"
+              }
+            }
           }
         }
       }

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "language": "javascript",
+  "entries": [
+    {
+      "advisory": "CVE-2099-1001",
+      "package": "example-lib",
+      "symbols": [
+        "parse"
+      ],
+      "complete": true,
+      "source": "example only: written for the DepRisk fixtures"
+    },
+    {
+      "advisory": "DEPRISK-NPM-0002",
+      "package": "other-lib",
+      "symbols": [
+        "run",
+        "Client.*"
+      ],
+      "complete": true,
+      "source": "example only: written for the DepRisk fixtures"
+    },
+    {
+      "advisory": "DEPRISK-NPM-0003",
+      "package": "deep-lib",
+      "symbols": [
+        "*"
+      ],
+      "complete": true,
+      "source": "example only: written for the DepRisk fixtures"
+    },
+    {
+      "advisory": "DEPRISK-NPM-0004",
+      "package": "@scope/client",
+      "symbols": [
+        "Api.send"
+      ],
+      "complete": false,
+      "source": "example only: written for the DepRisk fixtures"
+    }
+  ]
+}

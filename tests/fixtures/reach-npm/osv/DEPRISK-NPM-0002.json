@@ -1,0 +1,31 @@
+{
+  "id": "DEPRISK-NPM-0002",
+  "aliases": [
+    "CVE-2099-1002"
+  ],
+  "summary": "Synthetic advisory for the npm reachability fixtures",
+  "database_specific": {
+    "severity": "MODERATE"
+  },
+  "affected": [
+    {
+      "package": {
+        "ecosystem": "npm",
+        "name": "other-lib"
+      },
+      "ranges": [
+        {
+          "type": "SEMVER",
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "2.1.0"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
