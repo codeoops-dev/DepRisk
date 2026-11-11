@@ -47,9 +47,12 @@ public sealed class ReachNpmTests : IDisposable
             "src/app.js",
         })
         {
+            // The lockfile is stored as package-lock.fixture.json: a file called package-lock.json in the repository would make a scan of
+            // the repository root find both ecosystems.
             string target = Path.Combine(_root, name.Replace('/', Path.DirectorySeparatorChar));
+            string resource = name == "package-lock.json" ? "package-lock.fixture.json" : name;
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            File.WriteAllText(target, NpmFixtures.ReadReachNpm(name), new UTF8Encoding(false));
+            File.WriteAllText(target, NpmFixtures.ReadReachNpm(resource), new UTF8Encoding(false));
         }
     }
 

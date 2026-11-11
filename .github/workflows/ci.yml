@@ -39,6 +39,19 @@ jobs:
       - name: Smoke test the CLI
         run: dotnet run --no-build -c Release --project src/DepRisk.Cli -- --version
 
+      # The steps below scan the repository root as a NuGet project. A lockfile fixture stored under its real name (package-lock.json)
+      # would make the scan find a second ecosystem and fail with exit code 4, so fixtures use another name (package-lock.fixture.json).
+      - name: No npm lockfile under its real name in the repository
+        if: runner.os == 'Linux'
+        run: |
+          found="$(git ls-files | grep -E '(^|/)package-lock\.json$' || true)"
+          if [ -n "$found" ]; then
+            echo "A file named package-lock.json is tracked, which makes 'deprisk scan .' find npm as well as NuGet:"
+            echo "$found"
+            echo "Store lockfile fixtures as package-lock.fixture.json and copy them to package-lock.json in the test or step that needs them."
+            exit 1
+          fi
+
       # Contract test: DepRisk scans its own restored projects, and the JSON must match the published schema.
       - name: Scan output matches schemas/scan-result.v1.schema.json
         if: runner.os == 'Linux'
@@ -514,7 +527,10 @@ jobs:
         run: |
           cli="dotnet run --no-build -c Release --project src/DepRisk.Cli --"
           analyzer="analyzers/reach/target/release/deprisk-reach"
-          f="tests/fixtures/reach-npm"
+          # The lockfile is stored as package-lock.fixture.json so that scanning the repository root does not find two ecosystems.
+          f="$(mktemp -d)"
+          cp -r tests/fixtures/reach-npm/. "$f"
+          mv "$f/package-lock.fixture.json" "$f/package-lock.json"
           common="$f --advisories $f/osv --symbols $f/symbols --analyzer $analyzer"
           python3 -m check_jsonschema --schemafile schemas/symbol-map.v1.schema.json $f/symbols/npm-example.json
           $cli reach $common --format json --out reach-npm-1.json
