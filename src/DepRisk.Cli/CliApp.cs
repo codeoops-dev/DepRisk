@@ -130,6 +130,8 @@ internal static class CliApp
         output.WriteLine("  explain <id> [path]  Why a finding stands where it does: evidence, reachability path, risk, what would change it");
         output.WriteLine("                  --advisories <...>  --package <id>  (analysis options as for rank)  --format table|json  --out <file>");
         output.WriteLine("  vex [path]    OpenVEX 0.2.0 statements for the findings (not_affected only for proven unreachable ones)");
+        output.WriteLine("                  --sign --key <private key> (--subject-file <file> | --subject-digest sha256:<hex>)  Sign it: a DSSE envelope with an in-toto statement");
+        output.WriteLine("  vex verify <envelope> --pubkey <public key> [--subject-file <file>]  Verify a signed OpenVEX document");
         output.WriteLine("                  --product <purl|iri>  --author <text>  [--role <text>]  [--timestamp <rfc3339>]  (analysis options)  --out <file>");
         output.WriteLine("  rank [path]   Like match, ordered by CISA KEV, EPSS, and CVSS (baseline; offline)");
         output.WriteLine("                  --advisories <...> (required)  --epss <csv[.gz]>  --kev <json>");

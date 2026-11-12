@@ -26,7 +26,7 @@ With reachability (ADR 0012 to 0014) and the uncertainty model (ADR 0015), DepRi
 ## Known limits
 
 - The `not_affected` claim is as good as the symbol map and the call graph (ADR 0012). The document says so in the impact statement; downstream tools may not show it.
-- The document is built from the OpenVEX 0.2.0 specification; it has not been validated against the official schema in CI (the schema is not available offline). The structure is covered by unit tests, and a validation step with the OpenVEX tooling is a follow-up.
+- The document is built from the OpenVEX 0.2.0 specification and, since ADR 0021, validated in CI against the official JSON schema (pinned by checksum). Unit tests cover the structure; the tool does not validate at run time. The document can be signed as a DSSE envelope with an in-toto statement (ADR 0021).
 - One statement per package version: findings in several projects of one repository are merged into one statement; the product is one name given by the author.
 - `explain` explains one advisory at a time and does not compare it with other advisories beyond the neighbour above it.
 

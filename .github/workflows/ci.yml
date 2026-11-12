@@ -568,3 +568,59 @@ jobs:
           assert any("no entries for JavaScript and TypeScript (npm)" in d for d in r["diagnostics"]), r["diagnostics"]
           print("a C# symbol map does not apply to npm")
           PY
+
+      # OpenVEX against the official JSON schema (pinned by checksum) and a signed document verified with OpenSSL, an implementation
+      # that is not ours (ADR 0021). The documents are made from synthetic fixtures.
+      - name: openvex schema and signature
+        run: |
+          cli="dotnet run --no-build -c Release --project src/DepRisk.Cli --"
+          analyzer="analyzers/reach/target/release/deprisk-reach"
+          curl -fsSL -o openvex_json_schema.json https://raw.githubusercontent.com/openvex/spec/main/openvex_json_schema.json
+          echo "9373597734ed1d3ea5161a8b46d3866c4a8cfe76fd632fdd16aef01fb34b3238  openvex_json_schema.json" | sha256sum -c -
+          # A document with not_affected in it: the npm fixture has a direct, complete, unreachable finding.
+          npm="$(mktemp -d)"
+          cp -r tests/fixtures/reach-npm/. "$npm"
+          mv "$npm/package-lock.fixture.json" "$npm/package-lock.json"
+          npm_args="$npm --advisories $npm/osv --symbols $npm/symbols --analyzer $analyzer --product pkg:npm/demo-app@1.0.0 --author ci --timestamp 2026-11-12T12:00:00Z"
+          $cli vex $npm_args --out vex-npm.json
+          python3 -m check_jsonschema --schemafile openvex_json_schema.json vex-1.json vex-npm.json
+          grep -q '"status": "not_affected"' vex-npm.json
+          # Sign, verify with the tool, and verify again with OpenSSL.
+          openssl ecparam -name prime256v1 -genkey -noout -out vex.key
+          openssl ec -in vex.key -pubout -out vex.pub
+          subject="tests/fixtures/reach-npm/package.json"
+          $cli vex $npm_args --sign --key vex.key --subject-file $subject --out vex.intoto.json
+          $cli vex verify vex.intoto.json --pubkey vex.pub --subject-file $subject
+          python3 - <<'PY'
+          import base64, json
+          envelope = json.load(open("vex.intoto.json", encoding="utf-8"))
+          payload = base64.b64decode(envelope["payload"])
+          payload_type = envelope["payloadType"].encode()
+          assert envelope["payloadType"] == "application/vnd.in-toto+json"
+          open("pae.bin", "wb").write(b"DSSEv1 %d %s %d %s" % (len(payload_type), payload_type, len(payload), payload))
+          open("sig.der", "wb").write(base64.b64decode(envelope["signatures"][0]["sig"]))
+          statement = json.loads(payload)
+          assert statement["_type"] == "https://in-toto.io/Statement/v1", statement["_type"]
+          assert statement["predicateType"] == "https://openvex.dev/ns/v0.2.0"
+          assert statement["subject"][0]["name"] == "package.json" and len(statement["subject"][0]["digest"]["sha256"]) == 64
+          json.dump(statement["predicate"], open("predicate.json", "w", encoding="utf-8"))
+          plain = json.load(open("vex-npm.json", encoding="utf-8"))
+          assert statement["predicate"] == plain, "the predicate must be the unsigned document"
+          tampered = dict(envelope)
+          tampered["payload"] = base64.b64encode(payload.replace(b"\"author\":\"ci\"", b"\"author\":\"xx\"")).decode()
+          json.dump(tampered, open("vex.tampered.json", "w", encoding="utf-8"))
+          print("signed statement:", statement["subject"][0]["name"], "with", len(statement["predicate"]["statements"]), "statements")
+          PY
+          openssl dgst -sha256 -verify vex.pub -signature sig.der pae.bin
+          python3 -m check_jsonschema --schemafile openvex_json_schema.json predicate.json
+          # A changed document and another key must not verify (exit code 3).
+          set +e
+          $cli vex verify vex.tampered.json --pubkey vex.pub
+          tampered=$?
+          openssl ecparam -name prime256v1 -genkey -noout -out other.key
+          openssl ec -in other.key -pubout -out other.pub
+          $cli vex verify vex.intoto.json --pubkey other.pub
+          other=$?
+          set -e
+          test "$tampered" = "3" || { echo "a changed document must not verify (expected exit 3, got $tampered)"; exit 1; }
+          test "$other" = "3" || { echo "another key must not verify (expected exit 3, got $other)"; exit 1; }

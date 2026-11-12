@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using DepRisk.Audit;
 using DepRisk.Core;
@@ -10,7 +11,8 @@ using DepRisk.Data.Reach;
 namespace DepRisk.Cli;
 
 /// <summary>
-/// <c>deprisk vex [path] --product &lt;purl|iri&gt; --author &lt;text&gt; [--role text] [--timestamp rfc3339] (analysis options) [--out file]</c>:
+/// <c>deprisk vex [path] --product &lt;purl|iri&gt; --author &lt;text&gt; [--role text] [--timestamp rfc3339] (analysis options) [--out file]
+/// [--sign --key file (--subject-file file | --subject-digest sha256:hex)...]</c> and <c>deprisk vex verify &lt;envelope&gt; --pubkey file</c>:
 /// an OpenVEX 0.2.0 document with one statement per finding. <c>not_affected</c> only for findings proven unreachable under the
 /// strict conditions (ADR 0016); <c>affected</c> with an action for reachable ones; everything else <c>under_investigation</c>.
 /// </summary>
@@ -18,6 +20,11 @@ internal static class VexCommand
 {
     public static ExitCode Run(string[] args, TextWriter output, CliContext context)
     {
+        if (args.Length > 0 && args[0] == "verify")
+        {
+            return VexVerifyCommand.Run(args[1..], output, context);
+        }
+
         AnalysisArgs analysis = new();
         string path = ".";
         bool pathSet = false;
@@ -26,6 +33,10 @@ internal static class VexCommand
         string? role = null;
         string? timestampText = null;
         string? outFile = null;
+        bool sign = false;
+        string? keyFile = null;
+        List<string> subjectFiles = [];
+        List<string> subjectDigests = [];
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -55,6 +66,22 @@ internal static class VexCommand
             else if (ReachArgs.TryValue(args, ref i, arg, "--out", "-o", out value))
             {
                 outFile = value;
+            }
+            else if (arg == "--sign")
+            {
+                sign = true;
+            }
+            else if (ReachArgs.TryValue(args, ref i, arg, "--key", null, out value))
+            {
+                keyFile = value;
+            }
+            else if (ReachArgs.TryValue(args, ref i, arg, "--subject-file", null, out value))
+            {
+                subjectFiles.Add(value!);
+            }
+            else if (ReachArgs.TryValue(args, ref i, arg, "--subject-digest", null, out value))
+            {
+                subjectDigests.Add(value!);
             }
             else if (ReachArgs.TryValue(args, ref i, arg, "--format", "-f", out value))
             {
@@ -86,6 +113,23 @@ internal static class VexCommand
             throw new InvalidInputException("--role is too long or contains control characters.");
         }
 
+        if (!sign && (keyFile is not null || subjectFiles.Count > 0 || subjectDigests.Count > 0))
+        {
+            throw new InvalidInputException("--key, --subject-file, and --subject-digest only apply together with --sign.");
+        }
+
+        List<AttestationSubject> subjects = [];
+
+        if (sign)
+        {
+            if (keyFile is null)
+            {
+                throw new InvalidInputException("--sign needs --key <private key file> (an ECDSA P-256 key in PEM form).");
+            }
+
+            subjects = ReadSubjects(subjectFiles, subjectDigests, productValue, context);
+        }
+
         DateTimeOffset timestamp;
 
         if (timestampText is null)
@@ -111,6 +155,28 @@ internal static class VexCommand
             pipeline.Reach?.Result,
             new OpenVexOptions(productValue, authorValue, role, timestamp, $"{tool.Name} {tool.Version}"));
 
+        string written = json;
+
+        if (sign)
+        {
+            AuditSigner signer;
+
+            try
+            {
+                signer = AuditSigner.LoadPrivate(Path.GetFullPath(keyFile!, context.WorkingDirectory));
+            }
+            catch (AuditException ex)
+            {
+                throw new InvalidInputException(ex.Message, ex);
+            }
+
+            using (signer)
+            {
+                // The statement carries the OpenVEX document as its predicate; the envelope signs the statement (ADR 0021).
+                written = Dsse.Sign(signer, InTotoStatement.PayloadType, InTotoStatement.Create(subjects, OpenVexWriter.Context, json));
+            }
+        }
+
         List<AuditChange> changes = [];
 
         if (outFile is not null)
@@ -120,7 +186,7 @@ internal static class VexCommand
 
             try
             {
-                File.WriteAllText(outPath, json, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+                File.WriteAllText(outPath, written, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -132,18 +198,62 @@ internal static class VexCommand
 
         AuditRecorder.RecordIfEnabled(
             context,
-            new AuditDraft("vex", ArgRedactor.Redact(args), pipeline.Ranking.InputsDigest, Digest.Sha256Hex(json), changes));
+            new AuditDraft("vex", ArgRedactor.Redact(args), pipeline.Ranking.InputsDigest, Digest.Sha256Hex(written), changes));
 
         if (outFile is null)
         {
-            output.Write(json);
+            output.Write(written);
         }
         else
         {
-            output.Write($"Wrote OpenVEX to {outFile} ({pipeline.Ranking.Result.Findings.Count} statement(s))\n");
+            string what = sign ? "signed OpenVEX (DSSE envelope, in-toto statement)" : "OpenVEX";
+            output.Write($"Wrote {what} to {outFile} ({pipeline.Ranking.Result.Findings.Count} statement(s))\n");
         }
 
         return ExitCode.Success;
+    }
+
+    /// <summary>
+    /// What a signed statement is about: files (hashed here, so a digest cannot be mistyped) and digests given as sha256:hex. At least one
+    /// is needed: a signature over nothing in particular is not an attestation of anything.
+    /// </summary>
+    private static List<AttestationSubject> ReadSubjects(List<string> files, List<string> digests, string product, CliContext context)
+    {
+        List<AttestationSubject> subjects = [];
+
+        foreach (string file in files)
+        {
+            string full = Path.GetFullPath(file, context.WorkingDirectory);
+
+            try
+            {
+                using FileStream stream = File.OpenRead(full);
+                subjects.Add(new AttestationSubject(Path.GetFileName(full), Convert.ToHexStringLower(SHA256.HashData(stream))));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                throw new InvalidInputException($"cannot read the subject file '{TerminalText.Safe(file, 80)}' ({ex.Message})", ex);
+            }
+        }
+
+        foreach (string digest in digests)
+        {
+            string hex = digest.StartsWith("sha256:", StringComparison.Ordinal) ? digest["sha256:".Length..] : string.Empty;
+
+            if (!InTotoStatement.IsDigest(hex))
+            {
+                throw new InvalidInputException("--subject-digest must be sha256: followed by 64 lowercase hexadecimal digits.");
+            }
+
+            subjects.Add(new AttestationSubject(product, hex));
+        }
+
+        if (subjects.Count == 0)
+        {
+            throw new InvalidInputException("--sign needs the artifact the statements are about: --subject-file <file> (for example the built package or the lockfile) or --subject-digest sha256:<hex>.");
+        }
+
+        return subjects;
     }
 
     private static string Required(string? value, string option, string meaning, int maxLength)

@@ -70,6 +70,34 @@ public sealed class AuditSigner : IDisposable
         }
     }
 
+    /// <summary>
+    /// Signs arbitrary bytes. The format is the caller's choice: the audit log uses the raw 64-byte form, while DSSE and Sigstore
+    /// carry ASN.1 DER signatures (<see cref="DSASignatureFormat.Rfc3279DerSequence"/>), see ADR 0021.
+    /// </summary>
+    public byte[] SignBytes(ReadOnlySpan<byte> data, DSASignatureFormat format)
+    {
+        RequirePrivateKey();
+        return _key.SignData(data, HashAlgorithmName.SHA256, format);
+    }
+
+    public bool VerifyBytes(ReadOnlySpan<byte> data, ReadOnlySpan<byte> signature, DSASignatureFormat format)
+    {
+        try
+        {
+            return _key.VerifyData(data, signature, HashAlgorithmName.SHA256, format);
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// A stable identifier of the public key: the SHA-256 of its SubjectPublicKeyInfo (DER), as lowercase hexadecimal. It tells a
+    /// verifier which key to look for; it is not a secret and not a proof of anything by itself.
+    /// </summary>
+    public string KeyId() => Convert.ToHexStringLower(SHA256.HashData(_key.ExportSubjectPublicKeyInfo()));
+
     public void Dispose() => _key.Dispose();
 
     private static AuditSigner Load(string path, bool privateKey)

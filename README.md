@@ -183,7 +183,8 @@ Commands marked *(planned)* do not exist yet; the table in [Feature status](#fea
 | `deprisk verify <plan>` *(planned)* | Check a plan with the formally verified kernel. |
 | `deprisk apply <plan>` *(planned)* | Apply a verified plan (manifest edits, branch, optional PR). |
 | `deprisk explain <id> [path]` | Why a finding stands where it does: the baseline key that decided its place (or the risk statistic and the baseline rank), the evidence (installed where, fixed in, KEV, EPSS, CVSS), the reachability path step by step with the symbol sources, and what would change the picture. `<id>` is an advisory id or alias; `--package`, the analysis options of `rank` (`--advisories`, `--epss`, `--kev`, `--symbols`..., `--model risk`...), `--format table\|json`, `--out`. Every sentence is built from the data by a fixed template. |
-| `deprisk vex [path]` | An OpenVEX 0.2.0 document, one statement per finding, for `--product <purl\|iri>` by `--author <text>` (`--role`, `--timestamp <rfc3339>`; the analysis options of `rank`). `not_affected` (justification `vulnerable_code_not_in_execute_path`) only for a finding proven unreachable under strict conditions (see below); `affected` with an action for a reachable one; everything else `under_investigation`. |
+| `deprisk vex [path]` | An OpenVEX 0.2.0 document, one statement per finding, for `--product <purl\|iri>` by `--author <text>` (`--role`, `--timestamp <rfc3339>`; the analysis options of `rank`). `not_affected` (justification `vulnerable_code_not_in_execute_path`) only for a finding proven unreachable under strict conditions (see below); `affected` with an action for a reachable one; everything else `under_investigation`. With `--sign --key <private key> (--subject-file <file> \| --subject-digest sha256:<hex>)` the document is signed: a DSSE envelope with an in-toto statement whose predicate is the OpenVEX document (ADR 0021). |
+| `deprisk vex verify <envelope> --pubkey <public key> [--subject-file <file>]` | Verify a signed OpenVEX document against a public key (exit code 3 if it does not verify), and optionally that it is about the given files. A valid signature says who signed, not that the statements are true. |
 | `deprisk audit verify [path]` | Verify the integrity of the audit log (`--pubkey <file>`, `--head <hash>`). |
 | `deprisk bundle create\|import\|verify` *(planned)* | Build or load signed offline data bundles. |
 | `deprisk bench --cases <manifest.json>` | Compare the baselines (B1 CVSS only, B2 KEV/EPSS/CVSS, B3 reachable-only in a naive and a conservative form) with the risk model on labeled cases, with a held-out split (`--split dev\|test\|all`), a leakage guard on the EPSS and KEV dates, case-level bootstrap intervals, reachability precision/recall and unsound-`unreachable` counts, and calibration (Brier, log loss, reliability). Offline and deterministic; `--samples`, `--seed`, `--rank-by`, `--risk-params`, `--bootstrap`, `--analyzer`, `--strict`, `--format table\|json`, `--out`. Format and reading guide: [docs/benchmarks.md](docs/benchmarks.md) (ADR 0017). |
@@ -209,6 +210,11 @@ deprisk plan --budget 4h --pin lib-x --no-major lib-y
 # Export "not affected" statements to share with customers
 deprisk vex --status not_affected --out vex.json
 
+# Sign it (a DSSE envelope with an in-toto statement; the key is an ECDSA P-256 key in PEM form, for example from
+# `openssl ecparam -name prime256v1 -genkey -noout -out vex.key`) and let a customer verify it with the public key
+deprisk vex --product pkg:nuget/App@1.0.0 --author "Example Corp" --sign --key vex.key --subject-file App.1.0.0.nupkg --out vex.intoto.json
+deprisk vex verify vex.intoto.json --pubkey vex.pub --subject-file App.1.0.0.nupkg
+
 # Reproducible run
 deprisk plan --seed 42 --solver cbc --out plan.json
 ```
@@ -220,7 +226,7 @@ deprisk plan --seed 42 --solver cbc --out plan.json
 | 0 | Success, policy satisfied |
 | 1 | Policy gate failed (for example, reachable finding above threshold) |
 | 2 | Plan verification failed |
-| 3 | Audit log integrity failure |
+| 3 | Audit log integrity failure, or a signed OpenVEX document that does not verify |
 | 4 | Input or configuration error |
 | 5 | Internal error |
 
@@ -613,7 +619,7 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 | Audit | Merkle checkpoints and external anchoring | 🗺️ |
 | Offline | Signed bundles | 🗺️ |
 | Output | SARIF 2.1.0 and JSON for ranked findings (`rank`, `ci`) | ✅ |
-| Output | OpenVEX 0.2.0 export via `deprisk vex` (`not_affected` only under strict conditions, ADR 0016) | 🚧 |
+| Output | OpenVEX 0.2.0 export via `deprisk vex` (`not_affected` only under strict conditions, ADR 0016), checked in CI against the official OpenVEX JSON schema; signed as a DSSE envelope with an in-toto statement and verifiable with `deprisk vex verify` (ADR 0021) | 🚧 |
 | Output | `deprisk explain`: evidence, reachability path, risk, and what would change it, as text or JSON | 🚧 |
 | CI | `deprisk ci` + policy gate (`kev`, `ransomware`, `direct`, `fixable`, `cvss`, `epss`, `severity`) | ✅ |
 | CI | Reachability terms in the policy gate (`reachable`, `possibly-reachable`, `reach-unknown`, `unreachable`, `not-unreachable`); needs the analyzer built from source | 🚧 |
