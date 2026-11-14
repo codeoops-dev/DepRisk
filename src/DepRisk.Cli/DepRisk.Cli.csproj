@@ -23,6 +23,27 @@
     <ProjectReference Include="..\DepRisk.Audit\DepRisk.Audit.csproj" />
   </ItemGroup>
 
+  <!--
+    The reachability analyzer (analyzers/reach, Rust) is bundled per platform: the release workflow builds it on a runner of each platform
+    and stages it as analyzers/<rid>/deprisk-reach[.exe] here (ADR 0022). BundleAnalyzers=true puts the staged files into the package
+    next to the tool, where AnalyzerLocator looks for them; by default (a plain build or pack) nothing is bundled.
+  -->
+  <PropertyGroup>
+    <BundledAnalyzerPlatforms>linux-x64;linux-arm64;osx-x64;osx-arm64;win-x64</BundledAnalyzerPlatforms>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(BundleAnalyzers)' == 'true'">
+    <None Include="analyzers/**" Pack="true" PackagePath="tools/$(TargetFramework)/any/analyzers/" />
+  </ItemGroup>
+
+  <Target Name="CheckBundledAnalyzers" BeforeTargets="GenerateNuspec;_GetPackageFiles" Condition="'$(BundleAnalyzers)' == 'true' And '$(AllowMissingAnalyzers)' != 'true'">
+    <ItemGroup>
+      <_Platform Include="$(BundledAnalyzerPlatforms)" />
+      <_MissingAnalyzer Include="@(_Platform)" Condition="!Exists('$(MSBuildProjectDirectory)/analyzers/%(Identity)/deprisk-reach') And !Exists('$(MSBuildProjectDirectory)/analyzers/%(Identity)/deprisk-reach.exe')" />
+    </ItemGroup>
+    <Error Condition="'@(_MissingAnalyzer)' != ''" Text="BundleAnalyzers=true but no analyzer is staged in src/DepRisk.Cli/analyzers for: @(_MissingAnalyzer). Build them with .github/workflows/analyzer-build.yml, or pass -p:AllowMissingAnalyzers=true for a partial package." />
+  </Target>
+
   <ItemGroup>
     <None Include="PACKAGE.md" Pack="true" PackagePath="\" />
     <None Include="icon.png" Pack="true" PackagePath="\" />

@@ -1,6 +1,6 @@
 [package]
 name = "deprisk-reach"
-version = "0.1.0"
+version = "0.2.0-alpha.1"
 edition = "2021"
 rust-version = "1.89"
 description = "DepRisk reachability analyzer for C#: builds a conservative call graph from entrypoints and checks whether vulnerable symbols can be reached."

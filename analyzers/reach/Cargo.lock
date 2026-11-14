@@ -57,7 +57,7 @@ dependencies = [
 
 [[package]]
 name = "deprisk-reach"
-version = "0.1.0"
+version = "0.2.0-alpha.1"
 dependencies = [
  "serde",
  "serde_json",

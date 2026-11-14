@@ -1,7 +1,11 @@
 name: release
 
 # Publishes DepRisk.Cli to nuget.org with Trusted Publishing (no long-lived API key).
-# Trigger: push a tag such as v0.0.1-alpha.1 (the tag must match the version in Directory.Build.props).
+# Trigger: push a tag such as v0.2.0-alpha.1 (the tag must match the version in Directory.Build.props).
+#
+# The package bundles the reachability analyzer for every supported platform (ADR 0022): it is built on a runner of each platform
+# from the tagged source (analyzer-build.yml), packed and checked (package.yml), and only then published, with a build provenance
+# attestation for the package.
 
 on:
   push:
@@ -12,13 +16,24 @@ permissions:
   contents: read
 
 jobs:
+  analyzers:
+    uses: ./.github/workflows/analyzer-build.yml
+
+  package:
+    needs: analyzers
+    uses: ./.github/workflows/package.yml
+    with:
+      run-tests: true
+
   publish:
+    needs: package
     runs-on: ubuntu-latest
     # Must match the "Environment" field of the Trusted Publishing policy on nuget.org.
     environment: release
     permissions:
       contents: read
-      id-token: write # lets this job request a GitHub OIDC token
+      id-token: write # lets this job request a GitHub OIDC token (NuGet login and the attestation)
+      attestations: write # build provenance for the package
 
     steps:
       - uses: actions/checkout@v4
@@ -27,27 +42,27 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Restore
-        run: dotnet restore
+      - uses: actions/download-artifact@v4
+        with:
+          name: package
+          path: artifacts
 
-      - name: Build
-        run: dotnet build --no-restore -c Release
-
-      - name: Test
-        run: dotnet test --no-build -c Release
-
-      - name: Pack
-        run: dotnet pack src/DepRisk.Cli --no-restore -c Release -o artifacts
-
-      - name: Check that the tag matches the package version
+      - name: Check that the tag matches the package version and that the package is complete
         shell: bash
         run: |
-          expected="DepRisk.Cli.${GITHUB_REF_NAME#v}.nupkg"
+          version="${GITHUB_REF_NAME#v}"
+          expected="DepRisk.Cli.${version}.nupkg"
           if [ ! -f "artifacts/${expected}" ]; then
             echo "Tag '${GITHUB_REF_NAME}' does not match the built package. Expected artifacts/${expected}, found:"
             ls -1 artifacts
             exit 1
           fi
+          python3 build/verify-package.py "artifacts/${expected}" --version "${version}"
+
+      - name: Attest the provenance of the package
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: artifacts/*.nupkg
 
       # Request the short-lived API key as late as possible (it is valid for one hour).
       - name: NuGet login (OIDC to temporary API key)

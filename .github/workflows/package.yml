@@ -1,0 +1,91 @@
+name: package
+
+# Packs DepRisk.Cli with the analyzers that analyzer-build.yml produced, checks the package, installs it as a .NET tool the way a
+# user would, and runs the reachability commands without --analyzer, so the bundled analyzer is what is found and executed (ADR 0022).
+
+on:
+  workflow_call:
+    inputs:
+      run-tests:
+        description: Run the .NET tests before packing (the release does; ci.yml tests in its own job)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: analyzer-*
+          path: staging
+
+      - name: Stage the analyzers next to the tool project
+        run: |
+          for rid in linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64; do
+            exe=deprisk-reach
+            if [ "${rid%%-*}" = "win" ]; then exe=deprisk-reach.exe; fi
+            src="staging/analyzer-${rid}/${exe}"
+            if [ ! -f "$src" ]; then echo "missing $src"; ls -R staging; exit 1; fi
+            dest="src/DepRisk.Cli/analyzers/${rid}"
+            mkdir -p "$dest"
+            cp "$src" "$dest/${exe}"
+            (cd "$dest" && sha256sum "${exe}" > "${exe}.sha256")
+          done
+          find src/DepRisk.Cli/analyzers -type f | sort
+
+      - name: Restore and build
+        run: |
+          dotnet restore
+          dotnet build --no-restore -c Release
+
+      - name: Test
+        if: inputs.run-tests
+        run: dotnet test --no-build -c Release
+
+      - name: Pack (every platform's analyzer is required)
+        run: dotnet pack src/DepRisk.Cli --no-restore -c Release -o artifacts -p:BundleAnalyzers=true
+
+      - name: Check the package
+        run: python3 build/verify-package.py artifacts/DepRisk.Cli.*.nupkg
+
+      - name: Install the package as a tool and use the bundled analyzer
+        run: |
+          version="$(basename artifacts/DepRisk.Cli.*.nupkg .nupkg)"
+          version="${version#DepRisk.Cli.}"
+          dotnet tool install --tool-path "$RUNNER_TEMP/tool" DepRisk.Cli --add-source artifacts --version "$version"
+          deprisk="$RUNNER_TEMP/tool/deprisk"
+          "$deprisk" --version
+          "$deprisk" doctor | tee doctor.txt
+          grep -E "ok.*deprisk-reach" doctor.txt
+          # C# (NuGet) and JavaScript (npm) projects; no --analyzer, no environment variable, nothing on PATH.
+          f=tests/fixtures/reach
+          "$deprisk" reach $f/assets --advisories $f/osv --symbols $f/symbols --source $f/csharp --format json --out reach-cs.json
+          npm="$(mktemp -d)"
+          cp -r tests/fixtures/reach-npm/. "$npm"
+          mv "$npm/package-lock.fixture.json" "$npm/package-lock.json"
+          "$deprisk" reach "$npm" --advisories "$npm/osv" --symbols "$npm/symbols" --format json --out reach-npm.json
+          python3 - <<'PY'
+          import json
+          cs = {f["finding"]["id"]: f["reachability"]["label"] for f in json.load(open("reach-cs.json", encoding="utf-8"))["findings"]}
+          npm = {f["finding"]["id"]: f["reachability"]["label"] for f in json.load(open("reach-npm.json", encoding="utf-8"))["findings"]}
+          assert cs["DEPRISK-EXAMPLE-0001"] == "reachable", cs
+          assert npm["DEPRISK-NPM-0001"] == "reachable" and npm["DEPRISK-NPM-0002"] == "unreachable", npm
+          print("the bundled analyzer was found and ran:", cs, npm)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package
+          path: artifacts/*.nupkg
+          if-no-files-found: error
+          retention-days: 14

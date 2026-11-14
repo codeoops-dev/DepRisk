@@ -426,3 +426,6 @@ FodyWeavers.xsd
 
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
+
+# The reachability analyzer binaries staged for packaging (built per platform in CI, never committed; ADR 0022)
+src/DepRisk.Cli/analyzers/

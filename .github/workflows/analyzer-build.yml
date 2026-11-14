@@ -1,0 +1,53 @@
+name: analyzer-build
+
+# Builds the reachability analyzer (analyzers/reach, Rust) on a runner of every platform the NuGet package bundles it for, so that
+# nothing is cross-compiled and every binary is smoke-tested on the platform it is for. Used by ci.yml (on every push and pull
+# request, so a platform that stops building is found before a release) and by release.yml. ADR 0022.
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: analyzer (${{ matrix.rid }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: linux-x64, os: ubuntu-latest, exe: deprisk-reach }
+          - { rid: linux-arm64, os: ubuntu-24.04-arm, exe: deprisk-reach }
+          - { rid: osx-x64, os: macos-15-intel, exe: deprisk-reach }
+          - { rid: osx-arm64, os: macos-15, exe: deprisk-reach }
+          - { rid: win-x64, os: windows-latest, exe: deprisk-reach.exe }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+
+      - name: Build (locked dependencies, release profile)
+        working-directory: analyzers/reach
+        run: |
+          rustc --version
+          cargo build --release --locked
+
+      # The binary must start on this platform and answer a request in the protocol (an empty target list is a valid request).
+      - name: Smoke test
+        run: |
+          echo '{"schemaVersion":1,"language":"javascript","root":".","targets":[]}' | analyzers/reach/target/release/${{ matrix.exe }} | tee smoke.json
+          grep -q '"language":"javascript"' smoke.json
+          echo '{"schemaVersion":1,"root":".","targets":[]}' | analyzers/reach/target/release/${{ matrix.exe }} | grep -q '"language":"csharp"'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: analyzer-${{ matrix.rid }}
+          path: analyzers/reach/target/release/${{ matrix.exe }}
+          if-no-files-found: error
+          retention-days: 14

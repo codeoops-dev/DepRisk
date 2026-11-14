@@ -73,7 +73,7 @@ internal static class DoctorCommand
             string? path = AnalyzerLocator.Find(null, Environment.CurrentDirectory, Environment.GetEnvironmentVariable, AppContext.BaseDirectory);
 
             return path is null
-                ? new Check(Status.Info, "deprisk-reach", $"not found: reachability analyzer (pass --analyzer, set {AnalyzerLocator.EnvironmentVariable}, or put it next to deprisk)")
+                ? new Check(Status.Info, "deprisk-reach", $"not found: reachability analyzer (bundled with the NuGet package for {string.Join(", ", AnalyzerLocator.BundledPlatforms)}; this machine: {AnalyzerLocator.CurrentPlatform() ?? "other"}; or pass --analyzer, set {AnalyzerLocator.EnvironmentVariable}, or put it next to deprisk)")
                 : new Check(Status.Ok, "deprisk-reach", path);
         }
         catch (InvalidInputException ex)

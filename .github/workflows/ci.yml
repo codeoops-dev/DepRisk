@@ -624,3 +624,12 @@ jobs:
           set -e
           test "$tampered" = "3" || { echo "a changed document must not verify (expected exit 3, got $tampered)"; exit 1; }
           test "$other" = "3" || { echo "another key must not verify (expected exit 3, got $other)"; exit 1; }
+
+  # The reachability analyzer on every platform the package bundles it for, then the package itself, installed as a tool and used
+  # without --analyzer (ADR 0022). A platform that stops building, or a package that is not complete, is found here and not at release.
+  analyzers:
+    uses: ./.github/workflows/analyzer-build.yml
+
+  package:
+    needs: analyzers
+    uses: ./.github/workflows/package.yml

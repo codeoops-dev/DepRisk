@@ -76,7 +76,7 @@ DepRisk answers all three, from the terminal, offline if you need it.
 
 ## Quick start
 
-What works today (`0.1.0-alpha.1`, everything offline):
+What works today (`0.2.0-alpha.1`, everything offline):
 
 ```bash
 # 1. Install the .NET tool (pre-release)
@@ -468,7 +468,7 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - run: dotnet restore    # deprisk reads obj/project.assets.json
-      - run: dotnet tool install -g DepRisk.Cli --version 0.1.0-alpha.1   # pin the version
+      - run: dotnet tool install -g DepRisk.Cli --version 0.2.0-alpha.1   # pin the version
       - name: Fetch advisory data (check the URLs; see docs/adr/0006 and 0007)
         run: |
           curl -fsSL -o NuGet.zip https://osv-vulnerabilities.storage.googleapis.com/NuGet/all.zip
@@ -605,10 +605,10 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 | Ingest | CycloneDX / SPDX SBOM | 🗺️ |
 | Model | Dependency hypergraph of the resolved graph (NuGet; npm with Node-style path resolution and node-semver ranges), requirement checks, DOT/JSON export via `deprisk graph` | ✅ |
 | Model | Hypergraph with candidate versions and allowed tuples (for the optimizer) | 🗺️ |
-| Analysis | Reachability: C# analyzer (`analyzers/reach`: standalone process with a JSON protocol, conservative call graph, labels reachable / possibly-reachable / unreachable / unknown; build from source; not yet wired into the CLI) | 🚧 |
-| Analysis | `deprisk reach` with symbol maps ([format](docs/symbol-maps.md)); needs the analyzer built from source | 🚧 |
+| Analysis | Reachability: C# analyzer (`analyzers/reach`: standalone process with a JSON protocol, conservative call graph, labels reachable / possibly-reachable / unreachable / unknown; the analyzer is bundled with the NuGet package for linux-x64, linux-arm64, osx-x64, osx-arm64 and win-x64 (ADR 0022); elsewhere build it from source) | 🚧 |
+| Analysis | `deprisk reach` with symbol maps ([format](docs/symbol-maps.md)); the analyzer is bundled with the NuGet package for linux-x64, linux-arm64, osx-x64, osx-arm64 and win-x64 (ADR 0022); elsewhere build it from source | 🚧 |
 | Analysis | Reachability labels in `rank` and `ci` output (JSON, table, SARIF property) with `--symbols`; shown, not used for the order | 🚧 |
-| Analysis | Reachability: JS/TS in the CLI for npm projects: `reach`, `rank`, `ci`, `explain`, `vex` with npm symbol maps (`"language": "javascript"`, ADR 0020); needs the analyzer built from source; symbol data for real advisories has to be written (the fixtures are synthetic) | 🚧 |
+| Analysis | Reachability: JS/TS in the CLI for npm projects: `reach`, `rank`, `ci`, `explain`, `vex` with npm symbol maps (`"language": "javascript"`, ADR 0020); the analyzer is bundled with the NuGet package for linux-x64, linux-arm64, osx-x64, osx-arm64 and win-x64 (ADR 0022); elsewhere build it from source; symbol data for real advisories has to be written (the fixtures are synthetic) | 🚧 |
 | Analysis | Symbol mining from fix commits | 🗺️ |
 | Analysis | JavaScript and TypeScript reachability in the analyzer (ADR 0019): ES modules and CommonJS, classes and declared types, callbacks, decorated classes, workspace packages, package symbols like `lodash::template`; conservative (`unreachable` only when nothing could hide a path).| 🚧 |
 | Risk | Uncertainty model: `rank --model risk` gives each finding a risk distribution (seeded Monte Carlo over Reach x Exploit x Impact; mean, p50, p90, p95, cvar95) next to its baseline rank. The parameters are **uncalibrated placeholders** (shown in every result); calibration on labeled cases is still to do | 🚧 |
@@ -622,17 +622,17 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 | Output | OpenVEX 0.2.0 export via `deprisk vex` (`not_affected` only under strict conditions, ADR 0016), checked in CI against the official OpenVEX JSON schema; signed as a DSSE envelope with an in-toto statement and verifiable with `deprisk vex verify` (ADR 0021) | 🚧 |
 | Output | `deprisk explain`: evidence, reachability path, risk, and what would change it, as text or JSON | 🚧 |
 | CI | `deprisk ci` + policy gate (`kev`, `ransomware`, `direct`, `fixable`, `cvss`, `epss`, `severity`) | ✅ |
-| CI | Reachability terms in the policy gate (`reachable`, `possibly-reachable`, `reach-unknown`, `unreachable`, `not-unreachable`); needs the analyzer built from source | 🚧 |
+| CI | Reachability terms in the policy gate (`reachable`, `possibly-reachable`, `reach-unknown`, `unreachable`, `not-unreachable`); the analyzer is bundled with the NuGet package for linux-x64, linux-arm64, osx-x64, osx-arm64 and win-x64 (ADR 0022); elsewhere build it from source | 🚧 |
 | CI | GitHub Action wrapper | 🗺️ |
 | Explain | Deterministic evidence report | 🗺️ |
 | Explain | Optional local-LLM narrative | 🗺️ |
 
-*(Update this table as features land; it is the source of truth for what works today. Shipped in `0.1.0-alpha.1`: every row marked ✅.)*
+*(Update this table as features land; it is the source of truth for what works today. Shipped in `0.1.0-alpha.1`: every row marked ✅; `0.2.0-alpha.1` adds the reachability, uncertainty, `explain`, `vex`, and `bench` rows, marked 🚧 because they await real symbol data and a real benchmark.)*
 
 ## Roadmap
 
 - **v0.1** CLI skeleton, NuGet + npm ingest, hypergraph, advisory matching, risk ranking (CVSS+EPSS+KEV baseline), audit log, `ci` policy gate, SARIF. First pre-release: `0.1.0-alpha.1`.
-- **v0.2** Reachability (C#, JS/TS), uncertainty model, `explain`, OpenVEX export. Done in the repository, not yet in a release: C# reachability, the uncertainty model with placeholder parameters, `explain`, `vex`. The benchmark harness (`deprisk bench`, ADR 0017) is also in the repository, without a real dataset. The JS/TS analyzer (ADR 0019) and its use for npm projects in the CLI (ADR 0020) are in the repository. Still to do: shipping the analyzer with the tool, real symbol data, and a real labeled dataset. `deprisk bench calibrate` (ADR 0018) can fit the Reach factor from such a dataset; Exploit and Impact are still placeholders.
+- **v0.2** Reachability (C#, JS/TS), uncertainty model, `explain`, OpenVEX export (signed as a DSSE attestation, ADR 0021), the benchmark harness (`deprisk bench`, ADR 0017), and the analyzer bundled with the NuGet package for five platforms (ADR 0022). First pre-release: `0.2.0-alpha.1`. Still to do: real symbol data for real advisories, a real labeled benchmark dataset, and calibration of the placeholder parameters.
 - **v0.3** Optimizer (MILP + CVaR), plan format, `plan`/`apply --dry-run`.
 - **v0.4** SPARK kernel and proofs, `verify`, first published benchmark results (the harness itself is already in the repository, see v0.2).
 - **v0.5** Signed offline bundles, GitHub Action (the `ci` command and SARIF output already ship with v0.1).
