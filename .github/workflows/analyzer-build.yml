@@ -45,7 +45,7 @@ jobs:
           grep -q '"language":"javascript"' smoke.json
           echo '{"schemaVersion":1,"root":".","targets":[]}' | analyzers/reach/target/release/${{ matrix.exe }} | grep -q '"language":"csharp"'
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: analyzer-${{ matrix.rid }}
           path: analyzers/reach/target/release/${{ matrix.exe }}
