@@ -178,7 +178,46 @@ public sealed class ReachServiceTests : IDisposable
         ReachOutcome outcome = Run(Options(), new FakeAnalyzer());
 
         Assert.Equal(ReachLabels.Unreachable, VerdictOf(outcome, "DEPRISK-EXAMPLE-0003").Label);
-        Assert.Equal(2, outcome.Result.Summary.Unreachable);   // 0001 and 0003; 0002 is transitive and therefore unknown
+
+        // 0001 has a list that is not declared complete and 0002 is only transitive: neither may be unreachable (see the next tests).
+        Assert.Equal(1, outcome.Result.Summary.Unreachable);
+        Assert.Single(outcome.Result.Diagnostics, d => d.Contains("not declared complete", StringComparison.Ordinal));   // only for 0001
+    }
+
+    [Fact]
+    public void An_unreachable_answer_for_a_list_that_is_not_declared_complete_is_not_believed()
+    {
+        // The default fake analyzer answers "unreachable" for everything it is asked about, as a faulty analyzer might.
+        ReachOutcome outcome = Run(Options(), new FakeAnalyzer());
+
+        ReachVerdict verdict = VerdictOf(outcome, "DEPRISK-EXAMPLE-0001");
+        Assert.Equal(ReachLabels.Unknown, verdict.Label);
+        Assert.Equal(ReachLabels.SymbolListIncomplete, verdict.Reason);
+        Assert.Null(verdict.Symbol);
+        Assert.Empty(verdict.Path);
+        Assert.Contains("example", Assert.Single(verdict.SymbolSources), StringComparison.Ordinal);
+
+        string note = Assert.Single(outcome.Result.Diagnostics, d => d.Contains("not declared complete", StringComparison.Ordinal));
+        Assert.Contains("DEPRISK-EXAMPLE-0001", note);
+        Assert.Contains("Newtonsoft.Json", note);
+        Assert.Contains("please report it", note);
+    }
+
+    [Fact]
+    public void The_guard_leaves_every_other_answer_alone_and_says_nothing_when_nothing_was_changed()
+    {
+        // A path is a claim of presence, not of absence; "unknown" is already the cautious answer.
+        ReachOutcome possibly = Run(Options(), new FakeAnalyzer((_, request) => FakeAnalyzer.Result(request, "possibly-reachable", "dynamic-path", "Newtonsoft.Json.JsonConvert.DeserializeObject")));
+        Assert.Equal(ReachLabels.PossiblyReachable, VerdictOf(possibly, "DEPRISK-EXAMPLE-0001").Label);
+        Assert.DoesNotContain(possibly.Result.Diagnostics, d => d.Contains("not declared complete", StringComparison.Ordinal));
+
+        ReachOutcome unknown = Run(Options(), new FakeAnalyzer((_, request) => FakeAnalyzer.Result(request, "unknown", "incomplete-analysis")));
+        Assert.Equal(ReachLabels.IncompleteAnalysis, VerdictOf(unknown, "DEPRISK-EXAMPLE-0001").Reason);
+        Assert.DoesNotContain(unknown.Result.Diagnostics, d => d.Contains("not declared complete", StringComparison.Ordinal));
+
+        ReachOutcome reachable = Run(Options(), Standard());
+        Assert.Equal(ReachLabels.Reachable, VerdictOf(reachable, "DEPRISK-EXAMPLE-0001").Label);
+        Assert.DoesNotContain(reachable.Result.Diagnostics, d => d.Contains("not declared complete", StringComparison.Ordinal));
     }
 
     [Fact]

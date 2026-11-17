@@ -46,6 +46,8 @@ A file can be a directory of `.json` files (read recursively, in a fixed order).
 
 So an incomplete list can still *prove reachability* but can never *prove unreachability*.
 
+The rule is enforced in two places: the analyzer answers `unknown` for a list that is not complete, and the CLI turns an `unreachable` for such a list into `unknown` (`symbol-list-incomplete`) with a diagnostic if an analyzer ever says it (ADR 0023). Neither depends on the other being correct.
+
 ## Writing a good entry
 
 - List the **public** API that leads to the flaw, not the internal method that contains it: application code can only call public members. If the flaw is inside an internal helper, list every public member that can end up there, and say `complete: true` only if you checked that.

@@ -160,6 +160,35 @@ public sealed class ReachNpmTests : IDisposable
     }
 
     [Fact]
+    public void A_faulty_analyzer_cannot_turn_an_incomplete_symbol_list_into_unreachable_or_into_a_vex_not_affected()
+    {
+        // The analyzer is made to say "unreachable" for @scope/client, whose symbol list is not declared complete.
+        string faulty = Canned.Replace(
+            "{\"key\":\"DEPRISK-NPM-0004|@scope/client\",\"label\":\"unknown\",\"reason\":\"symbol-list-incomplete\"",
+            "{\"key\":\"DEPRISK-NPM-0004|@scope/client\",\"label\":\"unreachable\",\"reason\":\"no-path\"",
+            StringComparison.Ordinal);
+        Assert.NotEqual(Canned, faulty);
+
+        (int code, string output, _) = Run(Common("reach", faulty, "--format", "json"));
+        Assert.Equal((int)ExitCode.Success, code);
+
+        using JsonDocument doc = JsonDocument.Parse(output);
+        JsonElement verdict = Finding(doc, "DEPRISK-NPM-0004").GetProperty("reachability");
+        Assert.Equal("unknown", verdict.GetProperty("label").GetString());
+        Assert.Equal("symbol-list-incomplete", verdict.GetProperty("reason").GetString());
+        Assert.Contains(doc.RootElement.GetProperty("diagnostics").EnumerateArray(), d => d.GetString()!.Contains("not declared complete", StringComparison.Ordinal));
+
+        (int vexCode, string vex, string error) = Run(Common("vex", faulty, "--product", "pkg:npm/demo-app@1.0.0", "--author", "tests", "--format", "json"));
+        Assert.Equal((int)ExitCode.Success, vexCode);
+        Assert.Equal(string.Empty, error);
+
+        using JsonDocument statements = JsonDocument.Parse(vex);
+        Assert.Equal(
+            "under_investigation",
+            statements.RootElement.GetProperty("statements").EnumerateArray().Single(s => s.GetProperty("vulnerability").GetProperty("name").GetString() == "DEPRISK-NPM-0004").GetProperty("status").GetString());
+    }
+
+    [Fact]
     public void A_symbol_map_for_the_other_language_does_not_apply_and_says_so()
     {
         File.Delete(Path.Combine(_root, "symbols", "npm-example.json"));

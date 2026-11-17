@@ -22,7 +22,7 @@ ADR 0019 taught the analyzer JavaScript and TypeScript. The CLI sent only NuGet 
 ## Known limits
 
 - Symbol data for real npm advisories does not exist yet: OSV carries none, and the fixtures are synthetic. Writing it, or mining it from fix commits, is the next piece of work for npm.
-- The CLI trusts the analyzer's `unreachable` for a symbol list marked incomplete, because the analyzer is the one that applies `complete` (ADR 0013). A second check on the CLI side would be defense in depth; it has not been added.
+- The CLI no longer trusts the analyzer's `unreachable` for a symbol list marked incomplete: `ReachService` turns it into `unknown` / `symbol-list-incomplete` and says so (ADR 0023). What the CLI cannot check (unread sources, reflection, receivers) is still the analyzer's word.
 - Everything in ADR 0019's limits applies: no type checker, so many npm answers are `possibly-reachable` or `unknown`, and the benchmark harness (ADR 0017) is how to measure how often.
 
 ## Consequences

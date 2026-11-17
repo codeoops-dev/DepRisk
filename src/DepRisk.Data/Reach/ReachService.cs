@@ -100,10 +100,19 @@ public static class ReachService
         }
 
         List<ReachFinding> reached = [];
+        List<string> guardNotes = [];
 
         foreach ((Finding finding, string key, SymbolSet? set) in items)
         {
-            reached.Add(new ReachFinding(finding, Verdict(finding, key, set, analyzable, output)));
+            ReachVerdict verdict = Verdict(finding, key, set, analyzable, output, out bool overridden);
+            reached.Add(new ReachFinding(finding, verdict));
+
+            if (overridden)
+            {
+                guardNotes.Add(
+                    $"The analyzer reported {SafeText.Clean(finding.Id, 60)} in {SafeText.Clean(finding.Package.Id, 60)} as unreachable, but its symbol list is not declared complete: "
+                    + "the answer was changed to unknown (symbol-list-incomplete). A correct analyzer does not say that; please report it.");
+            }
         }
 
         reached = reached
@@ -113,7 +122,7 @@ public static class ReachService
             .Select(x => x.r)
             .ToList();
 
-        List<string> diagnostics = [];
+        List<string> diagnostics = [.. guardNotes];
 
         if (language is not null && maps.Map.CountFor(language) == 0 && maps.Map.Count > 0)
         {
@@ -180,8 +189,10 @@ public static class ReachService
         return root;
     }
 
-    private static ReachVerdict Verdict(Finding finding, string key, SymbolSet? set, bool analyzable, AnalyzerOutput? output)
+    private static ReachVerdict Verdict(Finding finding, string key, SymbolSet? set, bool analyzable, AnalyzerOutput? output, out bool overridden)
     {
+        overridden = false;
+
         if (!analyzable)
         {
             return new ReachVerdict(ReachLabels.Unknown, ReachLabels.NoAnalyzerForEcosystem, null, [], set?.Sources ?? []);
@@ -193,6 +204,15 @@ public static class ReachService
         }
 
         AnalyzerVerdict analyzed = output.Verdicts[key];
+
+        // "unreachable" claims that nothing reaches the vulnerable code, which can only be said of a list that names every way in. The
+        // analyzer applies this itself (it answers "unknown" for a list that is not declared complete), but the list is known here, and
+        // an answer of "unreachable" feeds ranking, policy gates, and VEX "not_affected": it is not taken on trust (ADR 0013, ADR 0023).
+        if (analyzed.Label == ReachLabels.Unreachable && !set.Complete)
+        {
+            overridden = true;
+            return new ReachVerdict(ReachLabels.Unknown, ReachLabels.SymbolListIncomplete, null, [], set.Sources);
+        }
 
         // The package's own code is not analyzed. A path from the application into it is real evidence; the absence of one is not,
         // because the package may be reached through the code of the packages that use it.
