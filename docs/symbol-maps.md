@@ -90,6 +90,15 @@ Each drafted entry is built to be refused until you have filled it in:
 
 Fill in `symbols`, decide `complete`, and write the `source`. Until all three are done every command that reads symbol maps stops with an input error that names the file and the entry, so an unfinished draft in your `--symbols` directory can never be read as "no symbols known". Keep drafts outside that directory while you work, or give them a name that does not end in `.json`. No symbols are proposed: OSV has none for NuGet or npm, and a guess would be a claim nobody made (ADR 0024).
 
+## Keeping a map honest: `deprisk symbols check`
+
+```bash
+deprisk symbols check . --advisories NuGet.zip --symbols symbols/
+deprisk symbols check . --advisories NuGet.zip --symbols symbols/ --fail-on missing,unused   # exit 1 when a pair has no entry or an entry no longer fits
+```
+
+The report says how many entries apply to the project and lists what needs attention: **unused** entries (no finding of this project matches the advisory and package any more: the package was removed or upgraded past the flaw, or the advisory is not in the data you gave), **incomplete** entries (`complete: false`, so the verdict can never be `unreachable`), entries that say `complete: true` for a package that is only a transitive dependency (the flag cannot have an effect there), and the **missing** pairs that `symbols template` would draft. Entries for the other language are counted as ignored. `--fail-on` takes `missing`, `incomplete`, `unused` (comma-separated) and makes the command exit 1 when any holds, naming them on standard error; `missing` counts the pairs that can be drafted, not names a map cannot hold. It checks that the maps still fit the project, not that the symbols are right (ADR 0025). Table output only.
+
 ## Where the data does not apply
 
 - **Transitive-only packages.** If the package is not referenced directly by any project, the application cannot be shown *not* to reach it through the code of the packages that use it, and that code is not analyzed. A path from the application's own code is still `reachable`; absence of one is `unknown` (`transitive-package-code-not-analyzed`), whatever `complete` says.

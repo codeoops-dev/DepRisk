@@ -322,7 +322,7 @@ public sealed class SymbolsTemplateCommandTests : IDisposable
     public void Wrong_use_is_an_input_error()
     {
         Assert.Equal((int)ExitCode.InvalidInput, Run("symbols").Code);
-        Assert.Equal((int)ExitCode.InvalidInput, Run("symbols", "check").Code);
+        Assert.Equal((int)ExitCode.InvalidInput, Run("symbols", "bogus").Code);
         Assert.Equal((int)ExitCode.InvalidInput, Run("symbols", "template", _root).Code);
 
         (int format, _, string formatError) = Run(Template("--format", "sarif"));

@@ -17,16 +17,21 @@ internal static class SymbolsCommand
 {
     private static readonly string[] SupportedFormats = ["table", "json"];
 
-    public static ExitCode Run(string[] args, TextWriter output, CliContext context)
+    public static ExitCode Run(string[] args, TextWriter output, TextWriter error, CliContext context)
     {
-        if (args.Length == 0 || args[0] != "template")
+        if (args.Length == 0 || args[0] is not ("template" or "check"))
         {
             throw new InvalidInputException(
                 args.Length == 0
-                    ? "'symbols' needs a subcommand. Available: template."
-                    : $"unknown symbols subcommand '{SafeText.Clean(args[0], 40)}'. Available: template.");
+                    ? "'symbols' needs a subcommand. Available: template, check."
+                    : $"unknown symbols subcommand '{SafeText.Clean(args[0], 40)}'. Available: template, check.");
         }
 
+        return args[0] == "check" ? RunCheck(args, output, error, context) : RunTemplate(args, output, context);
+    }
+
+    private static ExitCode RunTemplate(string[] args, TextWriter output, CliContext context)
+    {
         string path = ".";
         string? advisories = null;
         string? symbols = null;
@@ -231,6 +236,145 @@ internal static class SymbolsCommand
             text.Append("OSV carries no symbols for NuGet or npm, so none are proposed. See docs/symbol-maps.md for how to write them.\n");
         }
 
+        return text.ToString();
+    }
+
+    private static ExitCode RunCheck(string[] args, TextWriter output, TextWriter error, CliContext context)
+    {
+        string path = ".";
+        string? advisories = null;
+        string? symbols = null;
+        string? failOn = null;
+        Ecosystem? ecosystem = null;
+        bool strict = false;
+        bool pathSet = false;
+
+        for (int i = 1; i < args.Length; i++)
+        {
+            string arg = args[i];
+
+            if (ReachArgs.TryValue(args, ref i, arg, "--advisories", "-a", out string? value))
+            {
+                advisories = value;
+            }
+            else if (ReachArgs.TryValue(args, ref i, arg, "--symbols", "-s", out value))
+            {
+                symbols = value;
+            }
+            else if (ReachArgs.TryValue(args, ref i, arg, "--fail-on", null, out value))
+            {
+                failOn = value;
+            }
+            else if (ReachArgs.TryValue(args, ref i, arg, EcosystemOption.Name, null, out value))
+            {
+                ecosystem = EcosystemOption.Parse(value!, "symbols check");
+            }
+            else if (arg == "--strict")
+            {
+                strict = true;
+            }
+            else if (arg.StartsWith('-'))
+            {
+                throw new InvalidInputException($"unknown option '{SafeText.Clean(arg, 60)}' for 'symbols check'.");
+            }
+            else if (!pathSet)
+            {
+                path = arg;
+                pathSet = true;
+            }
+            else
+            {
+                throw new InvalidInputException("'symbols check' takes at most one path.");
+            }
+        }
+
+        if (advisories is null)
+        {
+            throw new InvalidInputException("'symbols check' needs advisory data: pass --advisories <directory | .zip | .json> (OSV format), as for 'match'.");
+        }
+
+        if (symbols is null)
+        {
+            throw new InvalidInputException("'symbols check' needs the symbol maps to check: pass --symbols <file | directory> (docs/symbol-maps.md).");
+        }
+
+        IReadOnlySet<string>? gate = failOn is null ? null : SymbolCheck.ParseGate(failOn);
+
+        SymbolCheckOutcome outcome = SymbolCheckService.Run(
+            new SymbolCheckOptions(
+                Path.GetFullPath(path, context.WorkingDirectory),
+                Path.GetFullPath(advisories, context.WorkingDirectory),
+                Path.GetFullPath(symbols, context.WorkingDirectory),
+                ecosystem,
+                strict),
+            new ToolInfo(ProductInfo.CommandName, VersionInfo.Current));
+
+        string text = RenderCheck(outcome);
+
+        AuditRecorder.RecordIfEnabled(
+            context,
+            new AuditDraft("symbols-check", ArgRedactor.Redact(args), outcome.InputsDigest, Digest.Sha256Hex(text), []));
+
+        output.Write(text);
+
+        if (gate is null)
+        {
+            return ExitCode.Success;
+        }
+
+        IReadOnlyList<string> tripped = SymbolCheck.Tripped(outcome.Result, gate);
+
+        if (tripped.Count == 0)
+        {
+            return ExitCode.Success;
+        }
+
+        error.WriteLine($"{ProductInfo.CommandName}: symbols check gate failed ({string.Join(", ", tripped)}).");
+        return ExitCode.PolicyGateFailed;
+    }
+
+    private static string RenderCheck(SymbolCheckOutcome outcome)
+    {
+        SymbolCheckResult r = outcome.Result;
+        StringBuilder text = new();
+
+        text.Append($"deprisk symbols check: {r.Entries.Count} entr{(r.Entries.Count == 1 ? "y" : "ies")} for {outcome.Language}, {r.Pairs.Count} advisory/package pair(s) in the project; ecosystem {Ecosystem.FromId(outcome.Ecosystem).DisplayName}\n");
+        text.Append($"advisories: {TerminalText.Safe(outcome.Advisories.Source, 80)}  {outcome.Advisories.Count} advisories, sha256 {outcome.Advisories.Digest[..12]}\n");
+        text.Append($"symbol maps: {TerminalText.Safe(outcome.SymbolMaps.Source, 80)}  {outcome.SymbolMaps.Entries} entr{(outcome.SymbolMaps.Entries == 1 ? "y" : "ies")}, sha256 {outcome.SymbolMaps.Digest[..12]}\n");
+
+        if (r.IgnoredOtherLanguage > 0)
+        {
+            text.Append($"ignored: {r.IgnoredOtherLanguage} entr{(r.IgnoredOtherLanguage == 1 ? "y" : "ies")} for the other language\n");
+        }
+
+        text.Append($"summary: {r.Applies} apply ({r.Applies - r.Incomplete} complete, {r.Incomplete} incomplete), {r.Unused} unused, {r.Missing} missing, {r.Unwritable} not writable\n");
+
+        foreach (SymbolEntryCheck entry in r.Entries.Where(e => e.Status == SymbolEntryStatus.Unused))
+        {
+            text.Append($"\n  {"unused",-14} {TerminalText.Safe(entry.Advisory, 60)}  {TerminalText.Safe(entry.Package, 80)}\n");
+            text.Append($"  {string.Empty,-14} no finding of this project matches it (the package is not installed at an affected version, or the advisory is not in the data given)\n");
+        }
+
+        foreach (SymbolEntryCheck entry in r.Entries.Where(e => e.Status == SymbolEntryStatus.Applies && !e.Complete))
+        {
+            text.Append($"\n  {"incomplete",-14} {TerminalText.Safe(entry.Advisory, 60)}  {TerminalText.Safe(entry.Package, 80)}\n");
+            text.Append($"  {string.Empty,-14} complete: false, so the verdict is never 'unreachable' (source: {TerminalText.Safe(string.Join("; ", entry.Sources), 100)})\n");
+        }
+
+        foreach (SymbolEntryCheck entry in r.Entries.Where(e => e.Status == SymbolEntryStatus.Applies && e.Complete && !e.Direct))
+        {
+            text.Append($"\n  {"transitive",-14} {TerminalText.Safe(entry.Advisory, 60)}  {TerminalText.Safe(entry.Package, 80)}\n");
+            text.Append($"  {string.Empty,-14} complete: true has no effect: the package is only a transitive dependency, so its own code is not analyzed\n");
+        }
+
+        foreach (SymbolWorkItem pair in r.Pairs.Where(p => p.Status != SymbolWorkStatus.Covered))
+        {
+            string label = pair.Status == SymbolWorkStatus.Missing ? "missing" : "not writable";
+            text.Append($"\n  {label,-14} {TerminalText.Safe(pair.Advisory, 60)}  {TerminalText.Safe(pair.Package, 80)} {TerminalText.Safe(string.Join(", ", pair.InstalledVersions.Take(3)), 60)} ({(pair.Direct ? "direct" : "transitive")})\n");
+            text.Append($"  {string.Empty,-14} {(pair.Status == SymbolWorkStatus.Missing ? "no entry yet; 'deprisk symbols template' drafts one" : TerminalText.Safe(pair.Problem, 120))}\n");
+        }
+
+        text.Append("\nThis checks that the maps still fit the project, not that the symbols are right or the lists really complete (ADR 0025).\n");
         return text.ToString();
     }
 }

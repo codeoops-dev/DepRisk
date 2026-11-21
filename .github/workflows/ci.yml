@@ -605,6 +605,35 @@ jobs:
           python3 -m check_jsonschema --schemafile schemas/symbol-map.v1.schema.json finished/filled.json
           $cli symbols template $f --advisories $f/osv --symbols finished | grep -q "0 to write, 4 covered, 0 not writable"
 
+      # symbols check (S18, ADR 0025): the maps of the npm fixture fit the project; a stale entry and a missing pair are found and the
+      # --fail-on gate exits 1 for them and 0 when nothing named holds.
+      - name: symbols check
+        run: |
+          cli="dotnet run --no-build -c Release --project src/DepRisk.Cli --"
+          f="$(mktemp -d)"
+          cp -r tests/fixtures/reach-npm/. "$f"
+          mv "$f/package-lock.fixture.json" "$f/package-lock.json"
+          $cli symbols check $f --advisories $f/osv --symbols $f/symbols --fail-on missing,unused | tee check-ok.txt
+          grep -q "4 apply (3 complete, 1 incomplete), 0 unused, 0 missing" check-ok.txt
+          # The incomplete entry trips the gate that names it.
+          code=0
+          $cli symbols check $f --advisories $f/osv --symbols $f/symbols --fail-on incomplete || code=$?
+          test "$code" = 1
+          # A stale entry is found and trips the unused gate.
+          mkdir -p stale
+          cp $f/symbols/npm-example.json stale/
+          echo '{"schemaVersion":1,"language":"javascript","entries":[{"advisory":"GHSA-gone","package":"removed-lib","symbols":["*"],"complete":true,"source":"ci: stale on purpose"}]}' > stale/stale.json
+          code=0
+          $cli symbols check $f --advisories $f/osv --symbols stale --fail-on unused > check-stale.txt || code=$?
+          test "$code" = 1
+          grep -q "unused         GHSA-gone  removed-lib" check-stale.txt
+          # A pair without an entry trips the missing gate.
+          mkdir -p partial
+          echo '{"schemaVersion":1,"language":"javascript","entries":[]}' > partial/empty.json
+          code=0
+          $cli symbols check $f --advisories $f/osv --symbols partial --fail-on missing || code=$?
+          test "$code" = 1
+
       # OpenVEX against the official JSON schema (pinned by checksum) and a signed document verified with OpenSSL, an implementation
       # that is not ours (ADR 0021). The documents are made from synthetic fixtures.
       - name: openvex schema and signature

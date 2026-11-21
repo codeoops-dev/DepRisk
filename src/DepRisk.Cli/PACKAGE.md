@@ -14,6 +14,7 @@ deprisk scan .                                # resolved dependency graph (--eco
 deprisk match --advisories NuGet.zip          # known vulnerabilities in those versions (npm: npm.zip)
 deprisk rank --advisories NuGet.zip --kev known_exploited_vulnerabilities.json --epss epss_scores-current.csv.gz
 deprisk symbols template --advisories NuGet.zip --out draft.json   # which advisory/package pairs still need a symbol map entry
+deprisk symbols check --advisories NuGet.zip --symbols symbols/   # do the maps still fit this project?
 deprisk reach --advisories NuGet.zip --symbols symbols/   # can the vulnerable code be reached? (see docs/symbol-maps.md)
 deprisk ci --advisories NuGet.zip --fail-on "kev&fixable,cvss>=9" --format sarif --out deprisk.sarif
 deprisk vex --product pkg:nuget/App@1.0.0 --author "Example Corp" --advisories NuGet.zip --symbols symbols/ --sign --key vex.key --subject-file App.nupkg --out vex.intoto.json
