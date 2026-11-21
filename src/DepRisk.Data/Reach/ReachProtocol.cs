@@ -111,6 +111,11 @@ public static class ReachProtocol
                     throw Invalid($"unknown label or reason ('{SafeText.Clean(label, 40)}', '{SafeText.Clean(reason, 40)}')");
                 }
 
+                if (!ReachLabels.Fits(label, reason))
+                {
+                    throw Invalid($"the label and the reason do not fit together ('{label}', '{reason}')");
+                }
+
                 if (!verdicts.TryAdd(key, new AnalyzerVerdict(label, reason, OptionalStr(result, "symbol", 600), ReadPath(result))))
                 {
                     throw Invalid("a key appears twice");

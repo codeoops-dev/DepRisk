@@ -636,8 +636,8 @@ Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
 ## Roadmap
 
 - **v0.1** CLI skeleton, NuGet + npm ingest, hypergraph, advisory matching, risk ranking (CVSS+EPSS+KEV baseline), audit log, `ci` policy gate, SARIF. First pre-release: `0.1.0-alpha.1`.
-- **v0.2** Reachability (C#, JS/TS), uncertainty model, `explain`, OpenVEX export (signed as a DSSE attestation, ADR 0021), the benchmark harness (`deprisk bench`, ADR 0017), and the analyzer bundled with the NuGet package for five platforms (ADR 0022). First pre-release: `0.2.0-alpha.1`. Still to do: real symbol data for real advisories, a real labeled benchmark dataset, and calibration of the placeholder parameters.
-- **v0.3** Optimizer (MILP + CVaR), plan format, `plan`/`apply --dry-run`.
+- **v0.2** Reachability (C#, JS/TS), uncertainty model, `explain`, OpenVEX export (signed as a DSSE attestation, ADR 0021), the benchmark harness (`deprisk bench`, ADR 0017), and the analyzer bundled with the NuGet package for five platforms (ADR 0022). First pre-release: `0.2.0-alpha.1`. Still to do: real symbol data for real advisories, a real labeled benchmark dataset, calibration of the placeholder parameters, and the engineering items listed in [docs/roadmap.md](docs/roadmap.md).
+- **v0.3** Optimizer (MILP + CVaR), plan format, `plan`/`apply --dry-run`. Not started; the proposed order is in [docs/roadmap.md](docs/roadmap.md).
 - **v0.4** SPARK kernel and proofs, `verify`, first published benchmark results (the harness itself is already in the repository, see v0.2).
 - **v0.5** Signed offline bundles, GitHub Action (the `ci` command and SARIF output already ship with v0.1).
 - **v1.0** Stable plan/audit formats, documented exit codes and schemas, preprint.

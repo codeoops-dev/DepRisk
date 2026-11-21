@@ -173,6 +173,20 @@ public sealed class ReachCommandTests : IDisposable
     }
 
     [Fact]
+    public void A_result_whose_label_and_reason_contradict_each_other_is_an_internal_error_and_nothing_is_printed_as_a_verdict()
+    {
+        // 0002 says "unreachable" with the reason of a found path: neither half can be believed (ADR 0026).
+        string contradictory = FakeAnalyzerScript.Canned.Replace("\"label\":\"unreachable\",\"reason\":\"no-path\"", "\"label\":\"unreachable\",\"reason\":\"static-path\"", StringComparison.Ordinal);
+        Assert.NotEqual(FakeAnalyzerScript.Canned, contradictory);
+
+        (int code, string output, string error) = Run("reach", Project, "--advisories", Osv, "--symbols", Symbols, "--analyzer", FakeAnalyzer(contradictory));
+
+        Assert.Equal((int)ExitCode.InternalError, code);
+        Assert.Equal(string.Empty, output);
+        Assert.Contains("do not fit together", error);
+    }
+
+    [Fact]
     public void A_broken_symbol_map_is_an_input_error_naming_the_file_and_entry()
     {
         File.WriteAllText(Symbols, """{ "schemaVersion": 1, "language": "csharp", "entries": [ { "advisory": "A", "package": "P", "symbols": ["A.B.C"], "source": "t" } ] }""");

@@ -21,7 +21,7 @@ That is how the code was written because the analyzer is the component that owns
 
 ## Known limits
 
-- The CLI does not validate that the label and the reason of an answer fit together (an `unreachable` with the reason `static-path`, for example). A further check of that kind is possible and has not been added.
+- The CLI does not validate that the label and the reason of an answer fit together (an `unreachable` with the reason `static-path`, for example). A further check of that kind is possible and has not been added. (Added by ADR 0026.)
 - A faulty analyzer can still say `unreachable` for a complete list, wrongly. The benchmark harness (ADR 0017) measures how often `unreachable` is wrong (the count of unsound `unreachable` calls); that is the evidence to ask for, not a rule that can be written in advance.
 
 ## Consequences

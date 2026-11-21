@@ -30,6 +30,23 @@ public static class ReachLabels
         StaticPath, DynamicPath, NoPath, NoSymbols, NoEntrypoints, SymbolListIncomplete, IncompleteAnalysis, UnresolvedReflection, UnresolvedReceiver,
     ];
 
+    /// <summary>
+    /// The reasons the analyzer can give with a label (ADR 0026): a path of static edges is <c>reachable</c>, a path that needs a dynamic edge is
+    /// <c>possibly-reachable</c>, no path from a complete search of a complete list is <c>unreachable</c>, and everything the analyzer could not
+    /// settle is <c>unknown</c>. Any other pairing contradicts itself.
+    /// </summary>
+    public static IReadOnlyList<string> ReasonsFor(string label) => label switch
+    {
+        Reachable => [StaticPath],
+        PossiblyReachable => [DynamicPath],
+        Unreachable => [NoPath],
+        Unknown => [NoSymbols, NoEntrypoints, SymbolListIncomplete, IncompleteAnalysis, UnresolvedReflection, UnresolvedReceiver],
+        _ => [],
+    };
+
+    /// <summary>Does the reason belong to the label (see <see cref="ReasonsFor"/>)?</summary>
+    public static bool Fits(string label, string reason) => ReasonsFor(label).Contains(reason);
+
     /// <summary>The reason in words, for people (the machine-readable reason stays in the result).</summary>
     public static string Describe(string reason) => reason switch
     {
