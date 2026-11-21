@@ -73,10 +73,27 @@ A symbol with no `::` is read relative to the entry's package; the analyzer is a
 
 `--entrypoint` names a function by its id in the result (`src/app.js::handler`, `src/app.ts::Svc.run`, or `src/app.js::*` for every function of a file) instead of a C# method. By default (`auto`) the entry points are the modules nobody imports with what they export, and decorated classes; for a library use `--entrypoints public-api`.
 
+## Starting a map: `deprisk symbols template`
+
+```bash
+deprisk symbols template . --advisories NuGet.zip --out symbols/draft.json            # what is missing, and a draft for it
+deprisk symbols template . --advisories NuGet.zip --symbols symbols/ --out more.json  # leave out what the maps already cover
+```
+
+The table lists every advisory and package pair of the project that has no entry yet, with what helps to write it: the aliases, the installed versions, whether the package is direct, the advisory's summary and the versions that fix it. A pair whose package is only transitive says so, because even a complete list cannot make that finding `unreachable`. `--out` writes the draft and refuses to replace a file that exists unless you pass `--force`; with `--format json` the draft is printed (or, with `--out`, written and only a note printed).
+
+Each drafted entry is built to be refused until you have filled it in:
+
+```json
+{ "advisory": "GHSA-xxxx-xxxx-xxxx", "package": "Some.Package", "symbols": [], "complete": null, "source": "" }
+```
+
+Fill in `symbols`, decide `complete`, and write the `source`. Until all three are done every command that reads symbol maps stops with an input error that names the file and the entry, so an unfinished draft in your `--symbols` directory can never be read as "no symbols known". Keep drafts outside that directory while you work, or give them a name that does not end in `.json`. No symbols are proposed: OSV has none for NuGet or npm, and a guess would be a claim nobody made (ADR 0024).
+
 ## Where the data does not apply
 
 - **Transitive-only packages.** If the package is not referenced directly by any project, the application cannot be shown *not* to reach it through the code of the packages that use it, and that code is not analyzed. A path from the application's own code is still `reachable`; absence of one is `unknown` (`transitive-package-code-not-analyzed`), whatever `complete` says.
-- **npm.** There is no analyzer for JavaScript or TypeScript yet: findings in an npm project are `unknown` (`no-analyzer-for-ecosystem`).
+- **A map of the other language.** An npm project reads only `"language": "javascript"` maps and a NuGet project only `"csharp"` ones; entries for the other language are ignored with a diagnostic, and the findings are `unknown` (`no-symbols`).
 - **Advisories without an entry** are `unknown` (`no-symbols`), never `unreachable`.
 
 ## Limits and validation

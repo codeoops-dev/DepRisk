@@ -82,6 +82,9 @@ internal static class CliApp
             case "reach":
                 return ReachCommand.Run(args[1..], output, context);
 
+            case "symbols":
+                return SymbolsCommand.Run(args[1..], output, context);
+
             case "explain":
                 return ExplainCommand.Run(args[1..], output, context);
 
@@ -127,6 +130,8 @@ internal static class CliApp
         output.WriteLine("  reach [path]  Can the vulnerable code be reached from your application? (C# and JavaScript/TypeScript, needs symbol maps and the analyzer)");
         output.WriteLine("                  --advisories <...>  --symbols <file|dir>  --source <dir>  --entrypoints auto|public-api|none");
         output.WriteLine("                  --entrypoint <Ns.Type.Method>  --analyzer <file>  --timeout <seconds>  --format table|json  --out <file>");
+        output.WriteLine("  symbols template [path]  Draft symbol map entries for the advisory and package pairs that have none (the draft is refused until filled in)");
+        output.WriteLine("                  --advisories <...>  [--symbols <file|dir>: leave out what is covered]  --format table|json  --out <file>  --force  --strict  --ecosystem auto|nuget|npm");
         output.WriteLine("  explain <id> [path]  Why a finding stands where it does: evidence, reachability path, risk, what would change it");
         output.WriteLine("                  --advisories <...>  --package <id>  (analysis options as for rank)  --format table|json  --out <file>");
         output.WriteLine("  vex [path]    OpenVEX 0.2.0 statements for the findings (not_affected only for proven unreachable ones)");
