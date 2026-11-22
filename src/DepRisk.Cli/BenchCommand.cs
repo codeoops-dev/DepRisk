@@ -49,47 +49,47 @@ internal static class BenchCommand
         {
             string arg = args[i];
 
-            if (ReachArgs.TryValue(args, ref i, arg, "--cases", "-c", out string? value))
+            if (OptionValue.TryValue(args, ref i, arg, "--cases", "-c", out string? value))
             {
                 cases = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--split", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--split", null, out value))
             {
                 split = value!;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--samples", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--samples", null, out value))
             {
                 samplesText = value!;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--seed", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--seed", null, out value))
             {
                 seedText = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--rank-by", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--rank-by", null, out value))
             {
                 rankByText = value!;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--risk-params", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--risk-params", null, out value))
             {
                 riskParams = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--bootstrap", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--bootstrap", null, out value))
             {
                 bootstrapText = value!;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--analyzer", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--analyzer", null, out value))
             {
                 analyzer = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--timeout", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--timeout", null, out value))
             {
                 timeoutText = value!;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--format", "-f", out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--format", "-f", out value))
             {
                 format = value!;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--out", "-o", out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--out", "-o", out value))
             {
                 outFile = value;
             }

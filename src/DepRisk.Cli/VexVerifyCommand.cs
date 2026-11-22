@@ -26,11 +26,11 @@ internal static class VexVerifyCommand
         {
             string arg = args[i];
 
-            if (ReachArgs.TryValue(args, ref i, arg, "--pubkey", null, out string? value))
+            if (OptionValue.TryValue(args, ref i, arg, "--pubkey", null, out string? value))
             {
                 pubkey = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--subject-file", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--subject-file", null, out value))
             {
                 subjectFiles.Add(value!);
             }

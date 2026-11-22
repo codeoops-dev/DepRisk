@@ -4,7 +4,7 @@ This page is the working list behind the short [Roadmap](../README.md#roadmap) i
 
 ## v0.2: reachability (shipped as `0.2.0-alpha.1`, work continues before the next release)
 
-Done: C# and JS/TS reachability, the uncertainty model, `explain`, signed OpenVEX, the benchmark harness, the bundled analyzer, `symbols template` (ADR 0024), `symbols check` (ADR 0025), the checks that stop an incomplete list or a contradictory answer from becoming `unreachable` (ADR 0023, ADR 0026).
+Done: C# and JS/TS reachability, the uncertainty model, `explain`, signed OpenVEX, the benchmark harness, the bundled analyzer, `symbols template` (ADR 0024), `symbols check` (ADR 0025), the checks that stop an incomplete list or a contradictory answer from becoming `unreachable` (ADR 0023, ADR 0026), and one shared way to read option values in every command (S20).
 
 Remaining, by who can do it:
 
@@ -12,7 +12,7 @@ Remaining, by who can do it:
 |---|---|---|
 | Real symbol maps for real npm and NuGet advisories | The maintainer's data and judgment | Start from `deprisk symbols template`, keep them honest with `deprisk symbols check`. This is the bottleneck of the research claim |
 | First real labeled benchmark dataset, then calibration and fitting of Exploit and Impact | The maintainer's data | Goes under `benchmarks/datasets/` with the first dataset |
-| Option-parsing unification | Code only | `RankCommand`, `BenchCommand`, `BenchCalibrateCommand`, `AnalysisArgs` and `SymbolsCommand` each parse options by hand |
+| Numeric option parsing is stricter in `bench` than elsewhere | A decision | `bench` and `bench calibrate` accept only plain digits for `--samples`, `--seed`, `--bootstrap`, `--timeout`; `rank`, `ci`, `explain`, `vex` and `reach` also accept a sign and surrounding spaces (`--samples +300`). Harmonizing changes what some command lines mean, so it waits for a decision. The two `bench` commands also still keep their own copies of the shared risk options |
 | Pinned Rust toolchain for reproducible analyzer builds | Code only | |
 | Analyzers for `linux-musl-x64` and `win-arm64` | Code and CI runners | |
 | Code signing and a run-time checksum check of the bundled analyzer | A signing decision | |

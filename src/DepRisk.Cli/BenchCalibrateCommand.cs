@@ -36,31 +36,31 @@ internal static class BenchCalibrateCommand
         {
             string arg = args[i];
 
-            if (ReachArgs.TryValue(args, ref i, arg, "--cases", "-c", out string? value))
+            if (OptionValue.TryValue(args, ref i, arg, "--cases", "-c", out string? value))
             {
                 cases = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--out", "-o", out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--out", "-o", out value))
             {
                 outFile = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--risk-params", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--risk-params", null, out value))
             {
                 start = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--prior", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--prior", null, out value))
             {
                 priorText = value!;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--min-count", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--min-count", null, out value))
             {
                 minCountText = value!;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--analyzer", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--analyzer", null, out value))
             {
                 analyzer = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--timeout", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--timeout", null, out value))
             {
                 timeoutText = value!;
             }

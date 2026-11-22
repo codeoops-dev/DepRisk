@@ -47,23 +47,23 @@ internal static class VexCommand
                 continue;
             }
 
-            if (ReachArgs.TryValue(args, ref i, arg, "--product", null, out string? value))
+            if (OptionValue.TryValue(args, ref i, arg, "--product", null, out string? value))
             {
                 product = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--author", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--author", null, out value))
             {
                 author = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--role", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--role", null, out value))
             {
                 role = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--timestamp", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--timestamp", null, out value))
             {
                 timestampText = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--out", "-o", out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--out", "-o", out value))
             {
                 outFile = value;
             }
@@ -71,19 +71,19 @@ internal static class VexCommand
             {
                 sign = true;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--key", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--key", null, out value))
             {
                 keyFile = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--subject-file", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--subject-file", null, out value))
             {
                 subjectFiles.Add(value!);
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--subject-digest", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--subject-digest", null, out value))
             {
                 subjectDigests.Add(value!);
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--format", "-f", out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--format", "-f", out value))
             {
                 if (value != "json")
                 {

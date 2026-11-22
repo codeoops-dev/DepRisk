@@ -28,29 +28,17 @@ internal static class GraphCommand
         {
             string arg = args[i];
 
-            if (arg is "--format" or "-f")
+            if (OptionValue.TryValue(args, ref i, arg, "--format", "-f", out string? value))
             {
-                format = ReadValue(args, ref i, arg);
+                format = value!;
             }
-            else if (arg.StartsWith("--format=", StringComparison.Ordinal))
+            else if (OptionValue.TryValue(args, ref i, arg, "--out", "-o", out value))
             {
-                format = arg["--format=".Length..];
+                outFile = value;
             }
-            else if (arg is "--out" or "-o")
+            else if (OptionValue.TryValue(args, ref i, arg, EcosystemOption.Name, null, out value))
             {
-                outFile = ReadValue(args, ref i, arg);
-            }
-            else if (arg.StartsWith("--out=", StringComparison.Ordinal))
-            {
-                outFile = arg["--out=".Length..];
-            }
-            else if (arg == EcosystemOption.Name)
-            {
-                ecosystem = EcosystemOption.Parse(ReadValue(args, ref i, arg), "graph");
-            }
-            else if (arg.StartsWith(EcosystemOption.Name + "=", StringComparison.Ordinal))
-            {
-                ecosystem = EcosystemOption.Parse(arg[(EcosystemOption.Name.Length + 1)..], "graph");
+                ecosystem = EcosystemOption.Parse(value!, "graph");
             }
             else if (arg.StartsWith('-'))
             {
@@ -120,17 +108,6 @@ internal static class GraphCommand
         }
 
         return ExitCode.Success;
-    }
-
-    private static string ReadValue(string[] args, ref int index, string option)
-    {
-        if (index + 1 >= args.Length)
-        {
-            throw new InvalidInputException($"option '{option}' needs a value.");
-        }
-
-        index++;
-        return args[index];
     }
 
     private static string RenderTable(HypergraphResult result)

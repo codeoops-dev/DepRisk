@@ -32,27 +32,27 @@ internal sealed class ReachArgs
     /// <summary>Reads the option at <paramref name="index"/> if it is a reachability option; returns whether it was.</summary>
     public bool TryRead(string[] args, ref int index, string arg)
     {
-        if (TryValue(args, ref index, arg, "--symbols", "-s", out string? value))
+        if (OptionValue.TryValue(args, ref index, arg, "--symbols", "-s", out string? value))
         {
             Symbols = value;
         }
-        else if (TryValue(args, ref index, arg, "--source", null, out value))
+        else if (OptionValue.TryValue(args, ref index, arg, "--source", null, out value))
         {
             Source = value;
         }
-        else if (TryValue(args, ref index, arg, "--analyzer", null, out value))
+        else if (OptionValue.TryValue(args, ref index, arg, "--analyzer", null, out value))
         {
             Analyzer = value;
         }
-        else if (TryValue(args, ref index, arg, "--entrypoints", null, out value))
+        else if (OptionValue.TryValue(args, ref index, arg, "--entrypoints", null, out value))
         {
             Mode = value!;
         }
-        else if (TryValue(args, ref index, arg, "--entrypoint", null, out value))
+        else if (OptionValue.TryValue(args, ref index, arg, "--entrypoint", null, out value))
         {
             ExplicitEntrypoints.Add(value!);
         }
-        else if (TryValue(args, ref index, arg, "--timeout", null, out value))
+        else if (OptionValue.TryValue(args, ref index, arg, "--timeout", null, out value))
         {
             if (!int.TryParse(value, out int seconds) || seconds < 1 || seconds > MaxTimeoutSeconds)
             {
@@ -117,29 +117,4 @@ internal sealed class ReachArgs
             Analyzer,
             TimeSpan.FromSeconds(TimeoutSeconds),
             context.WorkingDirectory);
-
-    internal static bool TryValue(string[] args, ref int index, string arg, string longName, string? shortName, out string? value)
-    {
-        value = null;
-
-        if (arg == longName || (shortName is not null && arg == shortName))
-        {
-            if (index + 1 >= args.Length)
-            {
-                throw new InvalidInputException($"option '{arg}' needs a value.");
-            }
-
-            index++;
-            value = args[index];
-            return true;
-        }
-
-        if (arg.StartsWith(longName + "=", StringComparison.Ordinal))
-        {
-            value = arg[(longName.Length + 1)..];
-            return true;
-        }
-
-        return false;
-    }
 }

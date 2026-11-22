@@ -31,124 +31,31 @@ internal static class RankCommand
     {
         string path = ".";
         string? failOn = null;
-        string? advisories = null;
-        string? epss = null;
-        string? kev = null;
         string format = "table";
-        Ecosystem? ecosystem = null;
         string? outFile = null;
-        bool strict = false;
         bool pathSet = false;
-        ReachArgs reach = new();
-        string model = "baseline";
-        string samplesText = "5000";
-        string? seedText = null;
-        string rankByText = "mean";
-        string? riskParams = null;
-        bool riskOptionGiven = false;
+        AnalysisArgs analysis = new();
 
         for (int i = 0; i < args.Length; i++)
         {
             string arg = args[i];
 
-            if (reach.TryRead(args, ref i, arg))
+            if (analysis.TryRead(args, ref i, arg, commandName))
             {
                 continue;
             }
 
-            if (ReachArgs.TryValue(args, ref i, arg, "--model", null, out string? riskValue))
+            if (OptionValue.TryValue(args, ref i, arg, "--format", "-f", out string? value))
             {
-                model = riskValue!;
-                continue;
+                format = value!;
             }
-
-            if (ReachArgs.TryValue(args, ref i, arg, "--samples", null, out riskValue))
+            else if (OptionValue.TryValue(args, ref i, arg, "--out", "-o", out value))
             {
-                samplesText = riskValue!;
-                riskOptionGiven = true;
-                continue;
+                outFile = value;
             }
-
-            if (ReachArgs.TryValue(args, ref i, arg, "--seed", null, out riskValue))
+            else if (ci && OptionValue.TryValue(args, ref i, arg, "--fail-on", null, out value))
             {
-                seedText = riskValue;
-                riskOptionGiven = true;
-                continue;
-            }
-
-            if (ReachArgs.TryValue(args, ref i, arg, "--rank-by", null, out riskValue))
-            {
-                rankByText = riskValue!;
-                riskOptionGiven = true;
-                continue;
-            }
-
-            if (ReachArgs.TryValue(args, ref i, arg, "--risk-params", null, out riskValue))
-            {
-                riskParams = riskValue;
-                riskOptionGiven = true;
-                continue;
-            }
-
-            if (arg is "--advisories" or "-a")
-            {
-                advisories = ReadValue(args, ref i, arg);
-            }
-            else if (arg.StartsWith("--advisories=", StringComparison.Ordinal))
-            {
-                advisories = arg["--advisories=".Length..];
-            }
-            else if (arg == "--epss")
-            {
-                epss = ReadValue(args, ref i, arg);
-            }
-            else if (arg.StartsWith("--epss=", StringComparison.Ordinal))
-            {
-                epss = arg["--epss=".Length..];
-            }
-            else if (arg == "--kev")
-            {
-                kev = ReadValue(args, ref i, arg);
-            }
-            else if (arg.StartsWith("--kev=", StringComparison.Ordinal))
-            {
-                kev = arg["--kev=".Length..];
-            }
-            else if (arg is "--format" or "-f")
-            {
-                format = ReadValue(args, ref i, arg);
-            }
-            else if (arg.StartsWith("--format=", StringComparison.Ordinal))
-            {
-                format = arg["--format=".Length..];
-            }
-            else if (arg is "--out" or "-o")
-            {
-                outFile = ReadValue(args, ref i, arg);
-            }
-            else if (arg.StartsWith("--out=", StringComparison.Ordinal))
-            {
-                outFile = arg["--out=".Length..];
-            }
-            else if (arg == "--strict")
-            {
-                strict = true;
-            }
-            else if (ci && arg == "--fail-on")
-            {
-                failOn = ReadValue(args, ref i, arg);
-            }
-            else if (ci && arg.StartsWith("--fail-on=", StringComparison.Ordinal))
-            {
-                failOn = arg["--fail-on=".Length..];
-            }
-            else if (arg == EcosystemOption.Name)
-            {
-                ecosystem = EcosystemOption.Parse(ReadValue(args, ref i, arg), commandName);
-            }
-            else if (arg.StartsWith(EcosystemOption.Name + "=", StringComparison.Ordinal))
-            {
-                ecosystem = EcosystemOption.Parse(arg[(EcosystemOption.Name.Length + 1)..], commandName);
+                failOn = value;
             }
             else if (arg.StartsWith('-'))
             {
@@ -171,13 +78,11 @@ internal static class RankCommand
                 $"format '{format}' is not supported for '{commandName}' (supported: {string.Join(", ", SupportedFormats)}).");
         }
 
-        if (advisories is null)
-        {
-            throw new InvalidInputException(
-                $"'{commandName}' needs advisory data: pass --advisories <directory | .zip | .json> (OSV format). "
-                + "Optionally add --epss <epss_scores-*.csv[.gz]> (FIRST EPSS) and --kev <known_exploited_vulnerabilities.json> (CISA KEV). "
-                + "See docs/adr/0006-advisory-data-and-matching.md and docs/adr/0007-baseline-ranking.md.");
-        }
+        analysis.RequireAdvisories(
+            commandName,
+            $"'{commandName}' needs advisory data: pass --advisories <directory | .zip | .json> (OSV format). "
+            + "Optionally add --epss <epss_scores-*.csv[.gz]> (FIRST EPSS) and --kev <known_exploited_vulnerabilities.json> (CISA KEV). "
+            + "See docs/adr/0006-advisory-data-and-matching.md and docs/adr/0007-baseline-ranking.md.");
 
         PolicyExpression? policy = null;
 
@@ -189,66 +94,20 @@ internal static class RankCommand
             }
         }
 
-        reach.Validate(commandName, symbolsRequired: false);
+        string scanPath = Path.GetFullPath(path, context.WorkingDirectory);
 
-        if (model is not ("baseline" or "risk"))
-        {
-            throw new InvalidInputException($"--model must be 'baseline' (the reference ordering) or 'risk' (the uncertainty model), not '{TerminalText.Safe(model, 40)}'.");
-        }
+        // Checks the reachability and risk options and loads the risk parameters (in that order), then builds the pipeline options.
+        RankPipelineOptions pipelineOptions = analysis.ToPipelineOptions(commandName, scanPath, context);
 
-        if (model == "baseline" && riskOptionGiven)
-        {
-            throw new InvalidInputException($"'{commandName}': --samples, --seed, --rank-by, and --risk-params only apply with --model risk.");
-        }
-
-        int samples = 0;
-        ulong? seed = null;
-        string rankBy = "mean";
-        LoadedRiskParameters? loadedRisk = null;
-
-        if (model == "risk")
-        {
-            if (!int.TryParse(samplesText, out samples) || samples < RiskModel.MinSamples || samples > RiskModel.MaxSamples)
-            {
-                throw new InvalidInputException($"--samples must be a whole number from {RiskModel.MinSamples} to {RiskModel.MaxSamples}.");
-            }
-
-            if (seedText is not null)
-            {
-                if (!ulong.TryParse(seedText, out ulong parsedSeed))
-                {
-                    throw new InvalidInputException("--seed must be a whole number from 0 to 18446744073709551615.");
-                }
-
-                seed = parsedSeed;
-            }
-
-            rankBy = RiskRanker.NormalizeStatistic(rankByText)
-                ?? throw new InvalidInputException($"--rank-by must be one of: {string.Join(", ", RiskRanker.Statistics)} (cvar is accepted for cvar95).");
-
-            loadedRisk = riskParams is null ? RiskParametersLoader.Defaults() : RiskParametersLoader.Load(Path.GetFullPath(riskParams, context.WorkingDirectory));
-        }
-
-        if (policy is { UsesReachability: true } && reach.Symbols is null)
+        if (policy is { UsesReachability: true } && analysis.Reach.Symbols is null)
         {
             throw new InvalidInputException(
                 "--fail-on uses reachability terms (reachable, possibly-reachable, reach-unknown, unreachable, not-unreachable), "
                 + "which need --symbols (and the analyzer): without a verdict they would silently match nothing.");
         }
 
-        string scanPath = Path.GetFullPath(path, context.WorkingDirectory);
-        string advisoriesPath = Path.GetFullPath(advisories, context.WorkingDirectory);
-
         RankPipelineOutcome pipeline = RankPipeline.Run(
-            new RankPipelineOptions(
-                scanPath,
-                advisoriesPath,
-                epss is null ? null : Path.GetFullPath(epss, context.WorkingDirectory),
-                kev is null ? null : Path.GetFullPath(kev, context.WorkingDirectory),
-                ecosystem,
-                strict,
-                reach.Symbols is null ? null : reach.ToOptions(scanPath, advisoriesPath, ecosystem, strict, context),
-                loadedRisk is null ? null : new RiskRequest(loadedRisk, samples, seed, rankBy)),
+            pipelineOptions,
             new ToolInfo(ProductInfo.CommandName, VersionInfo.Current),
             new AnalyzerProcess(),
             Environment.GetEnvironmentVariable,
@@ -338,17 +197,6 @@ internal static class RankCommand
         }
 
         return ExitCode.PolicyGateFailed;
-    }
-
-    private static string ReadValue(string[] args, ref int index, string option)
-    {
-        if (index + 1 >= args.Length)
-        {
-            throw new InvalidInputException($"option '{option}' needs a value.");
-        }
-
-        index++;
-        return args[index];
     }
 
     internal static string RenderTable(RankingOutcome outcome)

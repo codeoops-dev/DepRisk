@@ -29,41 +29,25 @@ internal static class MatchCommand
         {
             string arg = args[i];
 
-            if (arg is "--advisories" or "-a")
+            if (OptionValue.TryValue(args, ref i, arg, "--advisories", "-a", out string? value))
             {
-                advisories = ReadValue(args, ref i, arg);
+                advisories = value;
             }
-            else if (arg.StartsWith("--advisories=", StringComparison.Ordinal))
+            else if (OptionValue.TryValue(args, ref i, arg, "--format", "-f", out value))
             {
-                advisories = arg["--advisories=".Length..];
+                format = value!;
             }
-            else if (arg is "--format" or "-f")
+            else if (OptionValue.TryValue(args, ref i, arg, "--out", "-o", out value))
             {
-                format = ReadValue(args, ref i, arg);
-            }
-            else if (arg.StartsWith("--format=", StringComparison.Ordinal))
-            {
-                format = arg["--format=".Length..];
-            }
-            else if (arg is "--out" or "-o")
-            {
-                outFile = ReadValue(args, ref i, arg);
-            }
-            else if (arg.StartsWith("--out=", StringComparison.Ordinal))
-            {
-                outFile = arg["--out=".Length..];
+                outFile = value;
             }
             else if (arg == "--strict")
             {
                 strict = true;
             }
-            else if (arg == EcosystemOption.Name)
+            else if (OptionValue.TryValue(args, ref i, arg, EcosystemOption.Name, null, out value))
             {
-                ecosystem = EcosystemOption.Parse(ReadValue(args, ref i, arg), "match");
-            }
-            else if (arg.StartsWith(EcosystemOption.Name + "=", StringComparison.Ordinal))
-            {
-                ecosystem = EcosystemOption.Parse(arg[(EcosystemOption.Name.Length + 1)..], "match");
+                ecosystem = EcosystemOption.Parse(value!, "match");
             }
             else if (arg.StartsWith('-'))
             {
@@ -141,17 +125,6 @@ internal static class MatchCommand
         }
 
         return ExitCode.Success;
-    }
-
-    private static string ReadValue(string[] args, ref int index, string option)
-    {
-        if (index + 1 >= args.Length)
-        {
-            throw new InvalidInputException($"option '{option}' needs a value.");
-        }
-
-        index++;
-        return args[index];
     }
 
     private static string RenderTable(FindingsOutcome outcome)

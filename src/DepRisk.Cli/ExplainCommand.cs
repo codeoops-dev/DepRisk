@@ -36,15 +36,15 @@ internal static class ExplainCommand
                 continue;
             }
 
-            if (ReachArgs.TryValue(args, ref i, arg, "--package", "-p", out string? value))
+            if (OptionValue.TryValue(args, ref i, arg, "--package", "-p", out string? value))
             {
                 package = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--format", "-f", out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--format", "-f", out value))
             {
                 format = value!;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--out", "-o", out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--out", "-o", out value))
             {
                 outFile = value;
             }

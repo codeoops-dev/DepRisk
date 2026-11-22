@@ -27,21 +27,13 @@ internal static class AuditCommand
         {
             string arg = args[i];
 
-            if (arg == "--pubkey")
+            if (OptionValue.TryValue(args, ref i, arg, "--pubkey", null, out string? value))
             {
-                publicKeyPath = ReadValue(args, ref i, arg);
+                publicKeyPath = value;
             }
-            else if (arg.StartsWith("--pubkey=", StringComparison.Ordinal))
+            else if (OptionValue.TryValue(args, ref i, arg, "--head", null, out value))
             {
-                publicKeyPath = arg["--pubkey=".Length..];
-            }
-            else if (arg == "--head")
-            {
-                expectedHead = ReadValue(args, ref i, arg);
-            }
-            else if (arg.StartsWith("--head=", StringComparison.Ordinal))
-            {
-                expectedHead = arg["--head=".Length..];
+                expectedHead = value;
             }
             else if (arg.StartsWith('-'))
             {
@@ -81,16 +73,5 @@ internal static class AuditCommand
         output.Write($"Audit log OK: {result.Entries} entr{(result.Entries == 1 ? "y" : "ies")}\n");
         output.Write($"head: {result.Head}\n");
         return ExitCode.Success;
-    }
-
-    private static string ReadValue(string[] args, ref int index, string option)
-    {
-        if (index + 1 >= args.Length)
-        {
-            throw new InvalidInputException($"option '{option}' needs a value.");
-        }
-
-        index++;
-        return args[index];
     }
 }

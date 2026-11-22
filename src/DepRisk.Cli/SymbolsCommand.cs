@@ -46,23 +46,23 @@ internal static class SymbolsCommand
         {
             string arg = args[i];
 
-            if (ReachArgs.TryValue(args, ref i, arg, "--advisories", "-a", out string? value))
+            if (OptionValue.TryValue(args, ref i, arg, "--advisories", "-a", out string? value))
             {
                 advisories = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--symbols", "-s", out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--symbols", "-s", out value))
             {
                 symbols = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--format", "-f", out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--format", "-f", out value))
             {
                 format = value!;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--out", "-o", out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--out", "-o", out value))
             {
                 outFile = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, EcosystemOption.Name, null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, EcosystemOption.Name, null, out value))
             {
                 ecosystem = EcosystemOption.Parse(value!, "symbols template");
             }
@@ -253,19 +253,19 @@ internal static class SymbolsCommand
         {
             string arg = args[i];
 
-            if (ReachArgs.TryValue(args, ref i, arg, "--advisories", "-a", out string? value))
+            if (OptionValue.TryValue(args, ref i, arg, "--advisories", "-a", out string? value))
             {
                 advisories = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--symbols", "-s", out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--symbols", "-s", out value))
             {
                 symbols = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, "--fail-on", null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, "--fail-on", null, out value))
             {
                 failOn = value;
             }
-            else if (ReachArgs.TryValue(args, ref i, arg, EcosystemOption.Name, null, out value))
+            else if (OptionValue.TryValue(args, ref i, arg, EcosystemOption.Name, null, out value))
             {
                 ecosystem = EcosystemOption.Parse(value!, "symbols check");
             }

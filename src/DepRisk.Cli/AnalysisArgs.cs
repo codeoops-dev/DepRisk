@@ -33,42 +33,42 @@ internal sealed class AnalysisArgs
             return true;
         }
 
-        if (ReachArgs.TryValue(args, ref index, arg, "--advisories", "-a", out string? value))
+        if (OptionValue.TryValue(args, ref index, arg, "--advisories", "-a", out string? value))
         {
             _advisories = value;
         }
-        else if (ReachArgs.TryValue(args, ref index, arg, "--epss", null, out value))
+        else if (OptionValue.TryValue(args, ref index, arg, "--epss", null, out value))
         {
             _epss = value;
         }
-        else if (ReachArgs.TryValue(args, ref index, arg, "--kev", null, out value))
+        else if (OptionValue.TryValue(args, ref index, arg, "--kev", null, out value))
         {
             _kev = value;
         }
-        else if (ReachArgs.TryValue(args, ref index, arg, EcosystemOption.Name, null, out value))
+        else if (OptionValue.TryValue(args, ref index, arg, EcosystemOption.Name, null, out value))
         {
             _ecosystem = EcosystemOption.Parse(value!, commandName);
         }
-        else if (ReachArgs.TryValue(args, ref index, arg, "--model", null, out value))
+        else if (OptionValue.TryValue(args, ref index, arg, "--model", null, out value))
         {
             _model = value!;
         }
-        else if (ReachArgs.TryValue(args, ref index, arg, "--samples", null, out value))
+        else if (OptionValue.TryValue(args, ref index, arg, "--samples", null, out value))
         {
             _samples = value!;
             _riskOptionGiven = true;
         }
-        else if (ReachArgs.TryValue(args, ref index, arg, "--seed", null, out value))
+        else if (OptionValue.TryValue(args, ref index, arg, "--seed", null, out value))
         {
             _seed = value;
             _riskOptionGiven = true;
         }
-        else if (ReachArgs.TryValue(args, ref index, arg, "--rank-by", null, out value))
+        else if (OptionValue.TryValue(args, ref index, arg, "--rank-by", null, out value))
         {
             _rankBy = value!;
             _riskOptionGiven = true;
         }
-        else if (ReachArgs.TryValue(args, ref index, arg, "--risk-params", null, out value))
+        else if (OptionValue.TryValue(args, ref index, arg, "--risk-params", null, out value))
         {
             _riskParams = value;
             _riskOptionGiven = true;
@@ -85,12 +85,19 @@ internal sealed class AnalysisArgs
         return true;
     }
 
-    public RankPipelineOptions ToPipelineOptions(string commandName, string scanPath, CliContext context)
+    /// <summary>Checks that <c>--advisories</c> was given. A command that wants its own wording for the error passes it as <paramref name="message"/>.</summary>
+    public void RequireAdvisories(string commandName, string? message = null)
     {
         if (_advisories is null)
         {
-            throw new InvalidInputException($"'{commandName}' needs advisory data: pass --advisories <directory | .zip | .json> (OSV format), as for 'match'.");
+            throw new InvalidInputException(message ?? $"'{commandName}' needs advisory data: pass --advisories <directory | .zip | .json> (OSV format), as for 'match'.");
         }
+    }
+
+    public RankPipelineOptions ToPipelineOptions(string commandName, string scanPath, CliContext context)
+    {
+        RequireAdvisories(commandName);
+        string advisoriesOption = _advisories!;
 
         Reach.Validate(commandName, symbolsRequired: false);
 
@@ -130,7 +137,7 @@ internal sealed class AnalysisArgs
             risk = new RiskRequest(parameters, samples, seed, rankBy);
         }
 
-        string advisories = Path.GetFullPath(_advisories, context.WorkingDirectory);
+        string advisories = Path.GetFullPath(advisoriesOption, context.WorkingDirectory);
 
         return new RankPipelineOptions(
             scanPath,
