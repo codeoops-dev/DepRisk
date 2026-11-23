@@ -95,12 +95,12 @@ internal static class BenchCalibrateCommand
             _ => throw new InvalidInputException("--prior must be 'uniform' or 'current'."),
         };
 
-        if (!int.TryParse(minCountText, NumberStyles.None, CultureInfo.InvariantCulture, out int minCount) || minCount < 1 || minCount > ReachCalibration.MaxMinCount)
+        if (!OptionNumber.TryInt(minCountText, out int minCount) || minCount < 1 || minCount > ReachCalibration.MaxMinCount)
         {
             throw new InvalidInputException($"--min-count must be a whole number from 1 to {ReachCalibration.MaxMinCount}.");
         }
 
-        if (!int.TryParse(timeoutText, NumberStyles.None, CultureInfo.InvariantCulture, out int timeout) || timeout < 1 || timeout > MaxTimeoutSeconds)
+        if (!OptionNumber.TryInt(timeoutText, out int timeout) || timeout < 1 || timeout > MaxTimeoutSeconds)
         {
             throw new InvalidInputException($"--timeout must be a whole number of seconds from 1 to {MaxTimeoutSeconds}.");
         }

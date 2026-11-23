@@ -54,7 +54,7 @@ internal sealed class ReachArgs
         }
         else if (OptionValue.TryValue(args, ref index, arg, "--timeout", null, out value))
         {
-            if (!int.TryParse(value, out int seconds) || seconds < 1 || seconds > MaxTimeoutSeconds)
+            if (!OptionNumber.TryInt(value, out int seconds) || seconds < 1 || seconds > MaxTimeoutSeconds)
             {
                 throw new InvalidInputException($"--timeout must be a whole number of seconds from 1 to {MaxTimeoutSeconds}.");
             }

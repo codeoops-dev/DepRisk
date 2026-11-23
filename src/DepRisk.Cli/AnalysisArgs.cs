@@ -16,11 +16,7 @@ internal sealed class AnalysisArgs
     private string? _kev;
     private Ecosystem? _ecosystem;
     private string _model = "baseline";
-    private string _samples = "5000";
-    private string? _seed;
-    private string _rankBy = "mean";
-    private string? _riskParams;
-    private bool _riskOptionGiven;
+    private readonly RiskOptionArgs _risk = new(5000);
 
     public ReachArgs Reach { get; } = new();
 
@@ -29,6 +25,11 @@ internal sealed class AnalysisArgs
     public bool TryRead(string[] args, ref int index, string arg, string commandName)
     {
         if (Reach.TryRead(args, ref index, arg))
+        {
+            return true;
+        }
+
+        if (_risk.TryRead(args, ref index, arg))
         {
             return true;
         }
@@ -52,26 +53,6 @@ internal sealed class AnalysisArgs
         else if (OptionValue.TryValue(args, ref index, arg, "--model", null, out value))
         {
             _model = value!;
-        }
-        else if (OptionValue.TryValue(args, ref index, arg, "--samples", null, out value))
-        {
-            _samples = value!;
-            _riskOptionGiven = true;
-        }
-        else if (OptionValue.TryValue(args, ref index, arg, "--seed", null, out value))
-        {
-            _seed = value;
-            _riskOptionGiven = true;
-        }
-        else if (OptionValue.TryValue(args, ref index, arg, "--rank-by", null, out value))
-        {
-            _rankBy = value!;
-            _riskOptionGiven = true;
-        }
-        else if (OptionValue.TryValue(args, ref index, arg, "--risk-params", null, out value))
-        {
-            _riskParams = value;
-            _riskOptionGiven = true;
         }
         else if (arg == "--strict")
         {
@@ -106,7 +87,7 @@ internal sealed class AnalysisArgs
             throw new InvalidInputException($"--model must be 'baseline' (the reference ordering) or 'risk' (the uncertainty model), not '{TerminalText.Safe(_model, 40)}'.");
         }
 
-        if (_model == "baseline" && _riskOptionGiven)
+        if (_model == "baseline" && _risk.AnyGiven)
         {
             throw new InvalidInputException($"'{commandName}': --samples, --seed, --rank-by, and --risk-params only apply with --model risk.");
         }
@@ -115,26 +96,8 @@ internal sealed class AnalysisArgs
 
         if (_model == "risk")
         {
-            if (!int.TryParse(_samples, out int samples) || samples < RiskModel.MinSamples || samples > RiskModel.MaxSamples)
-            {
-                throw new InvalidInputException($"--samples must be a whole number from {RiskModel.MinSamples} to {RiskModel.MaxSamples}.");
-            }
-
-            ulong? seed = null;
-
-            if (_seed is not null)
-            {
-                seed = ulong.TryParse(_seed, out ulong parsed) ? parsed : throw new InvalidInputException("--seed must be a whole number from 0 to 18446744073709551615.");
-            }
-
-            string rankBy = RiskRanker.NormalizeStatistic(_rankBy)
-                ?? throw new InvalidInputException($"--rank-by must be one of: {string.Join(", ", RiskRanker.Statistics)} (cvar is accepted for cvar95).");
-
-            LoadedRiskParameters parameters = _riskParams is null
-                ? RiskParametersLoader.Defaults()
-                : RiskParametersLoader.Load(Path.GetFullPath(_riskParams, context.WorkingDirectory));
-
-            risk = new RiskRequest(parameters, samples, seed, rankBy);
+            _risk.Validate();
+            risk = _risk.Build(context);
         }
 
         string advisories = Path.GetFullPath(advisoriesOption, context.WorkingDirectory);

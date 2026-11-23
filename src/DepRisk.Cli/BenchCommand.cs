@@ -34,10 +34,7 @@ internal static class BenchCommand
 
         string? cases = null;
         string split = "dev";
-        string samplesText = DefaultSamples.ToString(CultureInfo.InvariantCulture);
-        string? seedText = null;
-        string rankByText = "mean";
-        string? riskParams = null;
+        RiskOptionArgs risk = new(DefaultSamples);
         string bootstrapText = DefaultBootstrap.ToString(CultureInfo.InvariantCulture);
         string? analyzer = null;
         string timeoutText = DefaultTimeoutSeconds.ToString(CultureInfo.InvariantCulture);
@@ -49,6 +46,11 @@ internal static class BenchCommand
         {
             string arg = args[i];
 
+            if (risk.TryRead(args, ref i, arg))
+            {
+                continue;
+            }
+
             if (OptionValue.TryValue(args, ref i, arg, "--cases", "-c", out string? value))
             {
                 cases = value;
@@ -56,22 +58,6 @@ internal static class BenchCommand
             else if (OptionValue.TryValue(args, ref i, arg, "--split", null, out value))
             {
                 split = value!;
-            }
-            else if (OptionValue.TryValue(args, ref i, arg, "--samples", null, out value))
-            {
-                samplesText = value!;
-            }
-            else if (OptionValue.TryValue(args, ref i, arg, "--seed", null, out value))
-            {
-                seedText = value;
-            }
-            else if (OptionValue.TryValue(args, ref i, arg, "--rank-by", null, out value))
-            {
-                rankByText = value!;
-            }
-            else if (OptionValue.TryValue(args, ref i, arg, "--risk-params", null, out value))
-            {
-                riskParams = value;
             }
             else if (OptionValue.TryValue(args, ref i, arg, "--bootstrap", null, out value))
             {
@@ -122,36 +108,19 @@ internal static class BenchCommand
             throw new InvalidInputException($"--split must be one of: {string.Join(", ", BenchService.Splits)}.");
         }
 
-        if (!int.TryParse(samplesText, NumberStyles.None, CultureInfo.InvariantCulture, out int samples) || samples < RiskModel.MinSamples || samples > RiskModel.MaxSamples)
-        {
-            throw new InvalidInputException($"--samples must be a whole number from {RiskModel.MinSamples} to {RiskModel.MaxSamples}.");
-        }
+        risk.Validate();
 
-        ulong? seed = null;
-
-        if (seedText is not null)
-        {
-            seed = ulong.TryParse(seedText, NumberStyles.None, CultureInfo.InvariantCulture, out ulong parsed)
-                ? parsed
-                : throw new InvalidInputException("--seed must be a whole number from 0 to 18446744073709551615.");
-        }
-
-        string rankBy = RiskRanker.NormalizeStatistic(rankByText)
-            ?? throw new InvalidInputException($"--rank-by must be one of: {string.Join(", ", RiskRanker.Statistics)} (cvar is accepted for cvar95).");
-
-        if (!int.TryParse(bootstrapText, NumberStyles.None, CultureInfo.InvariantCulture, out int bootstrap) || bootstrap > Bootstrap.MaxIterations)
+        if (!OptionNumber.TryInt(bootstrapText, out int bootstrap) || bootstrap < 0 || bootstrap > Bootstrap.MaxIterations)
         {
             throw new InvalidInputException($"--bootstrap must be a whole number from 0 (off) to {Bootstrap.MaxIterations}.");
         }
 
-        if (!int.TryParse(timeoutText, NumberStyles.None, CultureInfo.InvariantCulture, out int timeout) || timeout < 1 || timeout > MaxTimeoutSeconds)
+        if (!OptionNumber.TryInt(timeoutText, out int timeout) || timeout < 1 || timeout > MaxTimeoutSeconds)
         {
             throw new InvalidInputException($"--timeout must be a whole number of seconds from 1 to {MaxTimeoutSeconds}.");
         }
 
-        LoadedRiskParameters parameters = riskParams is null
-            ? RiskParametersLoader.Defaults()
-            : RiskParametersLoader.Load(Path.GetFullPath(riskParams, context.WorkingDirectory));
+        RiskRequest riskRequest = risk.Build(context);
 
         LoadedBenchManifest manifest = BenchManifestLoader.Load(Path.GetFullPath(cases, context.WorkingDirectory));
         ToolInfo tool = new(ProductInfo.CommandName, VersionInfo.Current);
@@ -160,7 +129,7 @@ internal static class BenchCommand
             new BenchOptions(
                 manifest,
                 split,
-                new RiskRequest(parameters, samples, seed, rankBy),
+                riskRequest,
                 strict,
                 bootstrap,
                 analyzer is null ? null : Path.GetFullPath(analyzer, context.WorkingDirectory),
