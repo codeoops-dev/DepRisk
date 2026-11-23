@@ -192,7 +192,7 @@ Commands marked *(planned)* do not exist yet; the table in [Feature status](#fea
 | Command | Purpose |
 |---|---|
 | `deprisk init [path]` | Create `.deprisk/` with a signing key and start the signed audit log. Never overwrites anything. |
-| `deprisk scan [path]` | Read the resolved dependency graph: NuGet (`project.assets.json`, written by `dotnet restore`) or npm (`package-lock.json`, lockfileVersion 2 and 3). `--ecosystem auto\|nuget\|npm` (default: detect; a tree with both is an error that asks you to choose), `--format table\|json`, `--out`. Offline and deterministic. |
+| `deprisk scan [path]` | Read the resolved dependency graph: NuGet (`project.assets.json`, written by `dotnet restore`, or `packages.lock.json`; a project's assets file wins over its lock file) or npm (`package-lock.json`, lockfileVersion 1, 2 and 3; version 1 needs the `package.json` beside it). `--ecosystem auto\|nuget\|npm` (default: detect; a tree with both is an error that asks you to choose), `--format table\|json`, `--out`. Offline and deterministic. |
 | `deprisk match [path]` | Match the resolved dependencies against local OSV advisories: `--advisories <dir\|.zip\|.json>` (required), `--ecosystem`, `--format table\|json`, `--out`, `--strict`. Offline; matching is by version only. |
 | `deprisk rank [path]` | Like `match`, ordered by the baseline method: CISA KEV, then EPSS, then CVSS v3 base score. `--advisories <...>` (required), `--epss <csv[.gz]>`, `--kev <json>`, `--ecosystem`, `--format table\|json\|sarif`, `--out`, `--strict`; optionally `--symbols <file\|dir>` (with `--source`, `--analyzer`, `--entrypoints`, `--entrypoint`, `--timeout`) adds a reachability verdict to each finding without changing the order. Offline; the reference (B2) for the later model. |
 | `deprisk graph [path]` | The dependency hypergraph of the resolved graph: nodes, hyperedges (one per package version that requires something, plus a project hyperedge), every requirement checked against the resolved version (violated and undecided ones are listed), statistics. NuGet and npm (for npm, requirements are resolved the way Node does it and ranges are node-semver). `--ecosystem`, `--format table\|json\|dot`, `--out`. Offline. |
@@ -636,9 +636,9 @@ Legend: ✅ implemented (built, tested, behaves as documented) · 🧪 experimen
 | Area | Feature | Status |
 |---|---|---|
 | Ingest | NuGet restore graph (`project.assets.json`) via `deprisk scan` | ✅ |
-| Ingest | NuGet lockfiles (`packages.lock.json`) | 🗺️ |
+| Ingest | NuGet lockfiles (`packages.lock.json`, versions 1 to 3) via `deprisk scan` | ✅ |
 | Ingest | npm lockfiles (`package-lock.json`, lockfileVersion 2 and 3, workspaces, aliases) via `deprisk scan`; `rank` and `ci` work for npm too | ✅ |
-| Ingest | npm lockfileVersion 1 | 🗺️ |
+| Ingest | npm lockfileVersion 1 (read with the `package.json` beside it) | ✅ |
 | Ingest | CycloneDX / SPDX SBOM | 🗺️ |
 | Match | Advisory matching: OSV records (dir, .zip, .json), NuGet and npm (SemVer) version ranges, offline, via `deprisk match` | ✅ |
 | Rank | Baseline ranking (KEV, EPSS, CVSS v3 base score; no reachability or uncertainty) via `deprisk rank` | ✅ |

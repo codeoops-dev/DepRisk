@@ -72,7 +72,7 @@
           }
         },
         "projectFile": {
-          "description": "The project file relative to the scanned directory, forward slashes, when it can be determined: for NuGet (for example src/App/App.csproj) from the assets file's location, for npm the package.json next to the lock file if it exists; otherwise null.",
+          "description": "The project file relative to the scanned directory, forward slashes, when it can be determined: for NuGet (for example src/App/App.csproj) from the assets file's location or, for a packages.lock.json, the one project file beside it, for npm the package.json next to the lock file if it exists; otherwise null.",
           "type": [
             "string",
             "null"

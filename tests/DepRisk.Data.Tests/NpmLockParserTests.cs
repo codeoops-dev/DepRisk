@@ -230,7 +230,7 @@ public class NpmLockParserTests
     [InlineData("""{ "name": "x", "version": "1.0.0" }""", "lockfileVersion")]
     [InlineData("""{ "lockfileVersion": "3", "packages": { "": {} } }""", "lockfileVersion")]
     [InlineData("""[]""", "lockfileVersion")]
-    [InlineData("""{ "lockfileVersion": 1, "dependencies": {} }""", "npm 7")]
+    [InlineData("""{ "lockfileVersion": 1, "dependencies": {} }""", "package.json must be next to it")]
     [InlineData("""{ "lockfileVersion": 4, "packages": { "": {} } }""", "unsupported lockfileVersion 4")]
     [InlineData("""{ "lockfileVersion": 0, "packages": { "": {} } }""", "unsupported lockfileVersion 0")]
     [InlineData("""{ "lockfileVersion": 3 }""", "no 'packages' object")]

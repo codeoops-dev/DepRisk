@@ -250,13 +250,13 @@ public sealed class NpmCommandTests : IDisposable
     [Fact]
     public void A_broken_lock_file_is_an_input_error_naming_the_file()
     {
-        File.WriteAllText(Path.Combine(_root, "web", "package-lock.json"), """{ "lockfileVersion": 1, "dependencies": {} }""");
+        File.WriteAllText(Path.Combine(_root, "web", "package-lock.json"), """{ "lockfileVersion": 4, "packages": { "": {} } }""");
 
         (int code, _, string error) = Run("scan", _root);
 
         Assert.Equal((int)ExitCode.InvalidInput, code);
         Assert.Contains("web/package-lock.json", error);
-        Assert.Contains("lockfileVersion 1", error);
+        Assert.Contains("unsupported lockfileVersion 4", error);
     }
 
     [Fact]

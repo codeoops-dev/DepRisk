@@ -118,7 +118,7 @@ internal static class CliApp
         output.WriteLine();
         output.WriteLine("Commands:");
         output.WriteLine("  init [path]   Start a signed audit log in this project (creates .deprisk/)");
-        output.WriteLine("  scan [path]   Read the restored dependency graph: NuGet (project.assets.json) or npm (package-lock.json)");
+        output.WriteLine("  scan [path]   Read the restored dependency graph: NuGet (project.assets.json, packages.lock.json) or npm (package-lock.json)");
         output.WriteLine("                  --ecosystem auto|nuget|npm   what to read (default: auto, from the files found)");
         output.WriteLine("                  --format table|json   output format (default: table)");
         output.WriteLine("                  --out <file>          write the result to a file");

@@ -5,9 +5,10 @@ using DepRisk.Core.Model;
 namespace DepRisk.Data.Npm;
 
 /// <summary>
-/// Reads the resolved dependency graph from an npm <c>package-lock.json</c> (lockfileVersion 2 or 3: the <c>packages</c> map).
-/// The input is untrusted: the parser is bounded (JSON depth), never executes anything, validates every name that ends up
-/// in a result, and reports problems as <see cref="InvalidInputException"/>. See ADR 0010.
+/// Reads the resolved dependency graph from an npm <c>package-lock.json</c>: lockfileVersion 2 or 3 (the <c>packages</c> map), or
+/// lockfileVersion 1 (the nested <c>dependencies</c> tree written by npm 6 and older, read together with the <c>package.json</c> beside
+/// it; see <see cref="ParseVersion1"/>). The input is untrusted: the parser is bounded (JSON depth), never executes anything,
+/// validates every name that ends up in a result, and reports problems as <see cref="InvalidInputException"/>. See ADR 0010 and ADR 0027.
 /// </summary>
 /// <remarks>
 /// What the <c>packages</c> map contains, and how it is read:
@@ -38,7 +39,7 @@ public static class NpmLockParser
     private const int MaxVersionLength = 256;
     private const int MaxRangeLength = 1000;
 
-    private static readonly int[] SupportedLockfileVersions = [2, 3];
+    private static readonly int[] SupportedLockfileVersions = [1, 2, 3];
 
     // A lock file written by npm 7+ for lockfileVersion 2 also repeats the tree in the legacy "dependencies" section, which
     // nests one level per node_modules level (two JSON levels each), so the limit is higher than for the other inputs.
@@ -52,7 +53,11 @@ public static class NpmLockParser
     private static readonly string[] OwnerDependencyFields =
         ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
 
-    public static ProjectGraph Parse(string json, string displayPath, string fallbackProjectName)
+    /// <param name="readPackageJson">
+    /// Called only for lockfileVersion 1, which does not record what the project itself asks for: returns the text of the
+    /// <c>package.json</c> next to the lock file, or null if there is none (an input error, since "direct" cannot be known).
+    /// </param>
+    public static ProjectGraph Parse(string json, string displayPath, string fallbackProjectName, Func<string?>? readPackageJson = null)
     {
         ArgumentNullException.ThrowIfNull(json);
 
@@ -79,18 +84,16 @@ public static class NpmLockParser
                 throw new InvalidInputException($"{displayPath}: not an npm lock file (missing 'lockfileVersion').");
             }
 
-            if (lockfileVersion == 1)
-            {
-                throw new InvalidInputException(
-                    $"{displayPath}: lockfileVersion 1 (npm 6 and older) has no 'packages' map and is not supported. "
-                    + "Run 'npm install --package-lock-only' with npm 7 or newer to upgrade the lock file.");
-            }
-
             if (!SupportedLockfileVersions.Contains(lockfileVersion))
             {
                 throw new InvalidInputException(
                     $"{displayPath}: unsupported lockfileVersion {lockfileVersion} (supported: {string.Join(", ", SupportedLockfileVersions)}). "
                     + $"Please report your npm version at {ProductInfo.RepositoryUrl}/issues.");
+            }
+
+            if (lockfileVersion == 1)
+            {
+                return ParseVersion1(root, displayPath, fallbackProjectName, readPackageJson);
             }
 
             if (!root.TryGetProperty("packages", out JsonElement packagesElement) || packagesElement.ValueKind != JsonValueKind.Object)
@@ -130,6 +133,180 @@ public static class NpmLockParser
             return new ProjectGraph(projectName, displayPath, [new TargetGraph(TargetName, packages)]);
         }
     }
+
+    /// <summary>A version that is not a registry version (a git URL, a tarball, a path): never copied into a result.</summary>
+    public const string UnresolvedVersion = "unknown";
+
+    /// <summary>
+    /// lockfileVersion 1 (npm 6 and older). What differs from the <c>packages</c> map:
+    /// <list type="bullet">
+    /// <item>The installed packages are a nested tree: <c>dependencies</c> holds the top level of <c>node_modules</c>, and an entry's own
+    /// <c>dependencies</c> holds what is installed below it. The path of an entry is built the way version 2 and 3 write their keys
+    /// (<c>node_modules/a/node_modules/b</c>), so the hypergraph resolves requirements the same way.</item>
+    /// <item>What an installed package asks for is <c>requires</c> (dependencies and optionalDependencies; npm 6 installed no peers).</item>
+    /// <item>The lock file does not say what the project asks for, so that comes from the <c>package.json</c> beside it
+    /// (dependencies, devDependencies, optionalDependencies). Without it "direct" cannot be known and the file is refused. There are
+    /// no workspaces in this format.</item>
+    /// <item>For a git, tarball or file dependency the <c>version</c> field holds the location, not a version, and locations can carry
+    /// credentials: such a package is kept (with <see cref="UnresolvedVersion"/>, so it is counted as skipped and never matched) but
+    /// the location is not copied. An alias (<c>npm:name@1.2.3</c>) is the package <c>name</c> at <c>1.2.3</c>, as in version 2 and 3.</item>
+    /// </list>
+    /// </summary>
+    private static ProjectGraph ParseVersion1(JsonElement root, string displayPath, string fallbackProjectName, Func<string?>? readPackageJson)
+    {
+        string manifestLabel = SiblingManifestLabel(displayPath);
+        string? manifestText = readPackageJson?.Invoke();
+
+        if (manifestText is null)
+        {
+            throw new InvalidInputException(
+                $"{displayPath}: lockfileVersion 1 (npm 6 and older) does not record what the project asks for, so a package.json must be next to it "
+                + $"({manifestLabel} was not found). Put it there, or run 'npm install --package-lock-only' with npm 7 or newer to upgrade the lock file.");
+        }
+
+        JsonDocument manifest;
+
+        try
+        {
+            manifest = JsonDocument.Parse(manifestText, DocumentOptions);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidInputException($"{manifestLabel}: not valid JSON ({ex.Message})", ex);
+        }
+
+        using (manifest)
+        {
+            if (manifest.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                throw new InvalidInputException($"{manifestLabel}: not a package.json (the top level is not an object).");
+            }
+
+            // What the project asks for. A peer dependency is not here: npm 6 never installed one.
+            Dictionary<string, string> asked = new(StringComparer.Ordinal);
+
+            foreach (string field in new[] { "dependencies", "devDependencies", "optionalDependencies" })
+            {
+                foreach ((string name, string range) in ReadNameRangePairs(manifest.RootElement, field, string.Empty, manifestLabel))
+                {
+                    asked.TryAdd(name, range);
+                }
+            }
+
+            List<ResolvedPackage> packages = [];
+
+            if (root.TryGetProperty("dependencies", out JsonElement tree))
+            {
+                if (tree.ValueKind != JsonValueKind.Object)
+                {
+                    throw new InvalidInputException($"{displayPath}: the 'dependencies' of the lock file is not an object.");
+                }
+
+                ReadTree(tree, string.Empty, asked, packages, displayPath);
+            }
+
+            packages = packages
+                .OrderBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(p => p.Version, StringComparer.Ordinal)
+                .ThenBy(p => p.Path, StringComparer.Ordinal)
+                .ToList();
+
+            string projectName = ValidName(root) ?? ValidName(manifest.RootElement) ?? fallbackProjectName;
+            return new ProjectGraph(projectName, displayPath, [new TargetGraph(TargetName, packages)]);
+        }
+    }
+
+    private static void ReadTree(JsonElement level, string parentPath, Dictionary<string, string> asked, List<ResolvedPackage> packages, string displayPath)
+    {
+        HashSet<string> seen = new(StringComparer.Ordinal);
+
+        foreach (JsonProperty property in level.EnumerateObject())
+        {
+            string keyName = property.Name;
+            string where = parentPath.Length == 0 ? "(project)" : parentPath;
+
+            if (!seen.Add(keyName))
+            {
+                throw new InvalidInputException($"{displayPath}: duplicate key '{SafeText.Clean(keyName, 100)}' in the dependencies of '{SafeText.Clean(where, 100)}'.");
+            }
+
+            RequireValidName(keyName, where, displayPath);
+
+            string path = parentPath.Length == 0 ? NodeModules + keyName : parentPath + "/" + NodeModules + keyName;
+
+            if (property.Value.ValueKind != JsonValueKind.Object)
+            {
+                throw new InvalidInputException($"{displayPath}: the entry '{SafeText.Clean(path, 100)}' is not an object.");
+            }
+
+            (string id, string version) = ReadVersion1Identity(keyName, property.Value, path, displayPath);
+
+            // Direct: the project asks for it and it is installed at the top level (not inside another package's node_modules).
+            string? requested = null;
+            bool isDirect = parentPath.Length == 0 && asked.TryGetValue(keyName, out requested);
+
+            List<DependencyRef> requires = ReadNameRangePairs(property.Value, "requires", path, displayPath)
+                .GroupBy(pair => pair.Name, StringComparer.Ordinal)
+                .Select(group => new DependencyRef(group.Key, group.First().Range))
+                .OrderBy(d => d.Id, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(d => d.Id, StringComparer.Ordinal)
+                .ToList();
+
+            packages.Add(new ResolvedPackage(id, version, isDirect, requires, requested, path));
+
+            if (property.Value.TryGetProperty("dependencies", out JsonElement nested))
+            {
+                if (nested.ValueKind != JsonValueKind.Object)
+                {
+                    throw new InvalidInputException($"{displayPath}: the 'dependencies' of '{SafeText.Clean(path, 100)}' is not an object.");
+                }
+
+                ReadTree(nested, path, asked, packages, displayPath);
+            }
+        }
+    }
+
+    private static (string Id, string Version) ReadVersion1Identity(string keyName, JsonElement entry, string path, string displayPath)
+    {
+        if (!entry.TryGetProperty("version", out JsonElement versionElement)
+            || versionElement.ValueKind != JsonValueKind.String
+            || versionElement.GetString() is not { Length: > 0 and <= MaxVersionLength } raw
+            || raw.Any(char.IsControl))
+        {
+            throw new InvalidInputException($"{displayPath}: the entry '{SafeText.Clean(path, 100)}' has no valid 'version'.");
+        }
+
+        if (raw.StartsWith("npm:", StringComparison.Ordinal))
+        {
+            // "npm:name@1.2.3" or "npm:@scope/name@1.2.3": the real package is what advisories are about.
+            int at = raw.LastIndexOf('@');
+
+            if (at > "npm:".Length && IsValidPackageName(raw["npm:".Length..at]) && IsPlainVersion(raw[(at + 1)..]))
+            {
+                return (raw["npm:".Length..at], raw[(at + 1)..]);
+            }
+
+            return (keyName, UnresolvedVersion);
+        }
+
+        return (keyName, IsPlainVersion(raw) ? raw : UnresolvedVersion);
+    }
+
+    /// <summary>What a registry version is made of (letters, digits, <c>. - +</c>); a location (<c>:</c>, <c>/</c>, <c>#</c>, <c>@</c>) is not.</summary>
+    private static bool IsPlainVersion(string text) =>
+        text.Length > 0 && text.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-' or '+');
+
+    private static string? ValidName(JsonElement source) =>
+        source.TryGetProperty("name", out JsonElement name)
+        && name.ValueKind == JsonValueKind.String
+        && name.GetString() is { Length: > 0 and <= MaxNameLength } text
+        && !text.Any(char.IsControl)
+            ? text
+            : null;
+
+    /// <summary>"web/package-lock.json" gives "web/package.json" (the label used in messages about the manifest).</summary>
+    private static string SiblingManifestLabel(string displayPath) =>
+        displayPath.Contains('/', StringComparison.Ordinal) ? displayPath[..(displayPath.LastIndexOf('/') + 1)] + "package.json" : "package.json";
 
     private static List<KeyValuePair<string, JsonElement>> ReadEntries(JsonElement packages, string displayPath)
     {

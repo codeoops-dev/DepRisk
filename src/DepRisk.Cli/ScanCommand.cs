@@ -8,7 +8,7 @@ namespace DepRisk.Cli;
 
 /// <summary>
 /// <c>deprisk scan [path] [--ecosystem auto|nuget|npm] [--format table|json] [--out file]</c>:
-/// reads the restored dependency graph of every project under <c>path</c>: NuGet <c>project.assets.json</c> or npm <c>package-lock.json</c>.
+/// reads the restored dependency graph of every project under <c>path</c>: NuGet <c>project.assets.json</c> or <c>packages.lock.json</c>, or npm <c>package-lock.json</c>.
 /// Static, offline, read-only (apart from the optional output file and, in an initialized project, the audit log).
 /// </summary>
 internal static class ScanCommand
