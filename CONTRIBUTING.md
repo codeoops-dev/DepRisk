@@ -49,7 +49,7 @@ make bench    # reproducible benchmark suite
 - [ ] Public contracts respected: CLI command names, exit codes, and `schemaVersion`ed formats. Breaking changes need an ADR and a version bump
 - [ ] If `kernel/` changed: `make prove` passes with no unproven verification conditions
 - [ ] Security-sensitive changes (parsing untrusted input, signature handling, file writes, audit log) explain the threat considered; see [docs/threat-model.md](docs/threat-model.md)
-- [ ] Docs updated, and the README [Feature status](README.md#feature-status) table reflects reality
+- [ ] Docs updated, and the README [Feature status](README.md#feature-status) table reflects reality. Sweep the whole README, not only the row of your change: the status mark of every row it touches (✅ built and documented, 🧪 built but not validated on real data, 🚧 unfinished, 🗺️ planned), every present-tense sentence about the behavior, the Usage table, and the `--help` text. The documentation consistency tests must pass
 - [ ] No telemetry, no network calls during analysis commands (offline guarantee)
 
 ## Code guidelines

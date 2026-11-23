@@ -64,15 +64,17 @@ DepRisk answers all three, from the terminal, offline if you need it.
 
 ## What DepRisk does differently
 
-- **Reachability-aware.** Maps each advisory to vulnerable symbols and checks whether your code can reach them. Findings are labeled `reachable`, `possibly-reachable`, `unreachable`, or `unknown`, never silently dropped.
-- **Uncertainty-driven.** Risk is modeled as a probability distribution (not a point score). Plans can optimize expected risk *and* tail risk (CVaR).
-- **Decision optimization.** Remediation is solved as a constrained optimization problem: minimize residual risk under an effort budget and compatibility constraints.
-- **Hypergraph model.** Multi-package constraints (for example, three packages that must move together) are first-class hyperedges, not flattened into pairwise edges.
-- **Verified plans.** A small, formally proven kernel (Ada/SPARK) independently checks every plan. The optimizer is *untrusted*; the checker is *proven*.
+This is the design. What is built today is in [Feature status](#feature-status); parts that are not built yet are marked *(planned)*.
+
+- **Reachability-aware** *(experimental)*. Maps each advisory to vulnerable symbols and checks whether your code can reach them. Findings are labeled `reachable`, `possibly-reachable`, `unreachable`, or `unknown`, never silently dropped.
+- **Uncertainty-driven** *(experimental)*. Risk is modeled as a probability distribution (not a point score). Plans that optimize expected risk *and* tail risk (CVaR) are *planned*.
+- **Decision optimization** *(planned)*. Remediation is solved as a constrained optimization problem: minimize residual risk under an effort budget and compatibility constraints.
+- **Hypergraph model.** Multi-package constraints (for example, three packages that must move together) are first-class hyperedges, not flattened into pairwise edges. The hypergraph of what is installed exists today; candidate versions and allowed tuples for plans are *planned*.
+- **Verified plans** *(planned)*. A small, formally proven kernel (Ada/SPARK) independently checks every plan. The optimizer is *untrusted*; the checker is *proven*.
 - **Auditable.** Every decision is recorded in a hash-chained, signed log you can verify offline.
-- **Air-gapped ready.** Signed offline data bundles; zero network calls by default during analysis.
-- **Interoperable.** Reads CycloneDX/SPDX SBOMs and lockfiles; emits SARIF, JSON, and OpenVEX.
-- **Deterministic.** Same inputs, same seed, same plan. LLM explanations are optional, local-model capable, and never influence the plan.
+- **Air-gapped ready.** Zero network calls during analysis today (you supply the data files). Signed offline data bundles are *planned*.
+- **Interoperable.** Reads NuGet and npm lockfiles today and emits SARIF, JSON, and OpenVEX. Reading CycloneDX/SPDX SBOMs is *planned*.
+- **Deterministic.** Same inputs, same seed, same output. Optional local-model explanations are *planned* and will never influence the plan.
 
 ## Quick start
 
@@ -97,6 +99,23 @@ deprisk ci --advisories NuGet.zip --fail-on "kev&fixable,cvss>=9" --format sarif
 deprisk audit verify              # verify the audit log
 ```
 
+Reachability, risk distributions, explanations, VEX and the benchmark harness (**experimental**: the code is built and tested, but its accuracy has not been measured on real data, and you write the symbol maps; see [Feature status](#feature-status)):
+
+```bash
+# 4. Reachability: which advisory/package pairs still need a symbol map entry, and a draft for them
+deprisk symbols template --advisories NuGet.zip --out symbols-draft.json
+#    fill in "symbols", "complete" and "source" for each entry (docs/symbol-maps.md) and save the maps under symbols/
+#    (the draft is refused by every command until you have: an unfinished draft can never read as "no symbols known")
+deprisk symbols check --advisories NuGet.zip --symbols symbols/       # do the maps still fit the project? add --fail-on missing,unused to gate on it
+deprisk reach --advisories NuGet.zip --symbols symbols/               # reachable / possibly-reachable / unreachable / unknown, per advisory
+
+# 5. Risk distributions, explanations, VEX, benchmark
+deprisk rank --advisories NuGet.zip --symbols symbols/ --model risk   # seeded Monte Carlo; the parameters are uncalibrated placeholders
+deprisk explain GHSA-xxxx-xxxx-xxxx --advisories NuGet.zip --symbols symbols/
+deprisk vex --product pkg:nuget/App@1.0.0 --author "Example Corp" --advisories NuGet.zip --symbols symbols/ --out vex.json
+deprisk bench --cases cases.json                                       # labeled-case benchmark (docs/benchmarks.md)
+```
+
 Advisory data (OSV dumps), EPSS scores, and the CISA KEV list are files you download on a connected machine and pass in; DepRisk never downloads anything.
 
 Planned (not in any release yet; see [Feature status](#feature-status)):
@@ -112,7 +131,7 @@ deprisk apply plan.json --dry-run
 deprisk apply plan.json --branch deprisk/fix-2026-10
 ```
 
-Illustrative output of a planned command (format only; numbers are made up for this example):
+Illustrative output of a planned view (format only; numbers are made up for this example). `rank --top` does not exist yet; `rank --model risk` already prints the reachability verdict and the risk statistics of each finding, in its own layout:
 
 ```text
 $ deprisk rank --top 5
@@ -129,7 +148,7 @@ $ deprisk rank --top 5
 
 ## Installation
 
-> **Pre-alpha:** only Option A (as a pre-release) and Option D work today. Options B and C describe the intended distribution and become valid when they ship (see [Feature status](#feature-status) and [Roadmap](#roadmap)). The reachability analyzer and the verification kernel do not exist yet, so the CLI is currently the only binary.
+> **Pre-alpha:** only Option A (as a pre-release) and Option D work today. Options B and C describe the intended distribution and become valid when they ship (see [Feature status](#feature-status) and [Roadmap](#roadmap)). The reachability analyzer is bundled with the NuGet package for linux-x64, linux-arm64, osx-x64, osx-arm64 and win-x64 (ADR 0022); the verification kernel does not exist yet.
 
 ### Option A: .NET global tool
 
@@ -156,7 +175,7 @@ docker run --rm -v "$PWD":/work -w /work ghcr.io/codeoops-dev/deprisk:latest sca
 
 ### Option D: from source
 
-Requirements today: the .NET 10 SDK. (The Rust toolchain and GNAT/GNATprove will be needed once the reachability analyzer and the SPARK kernel land.)
+Requirements today: the .NET 10 SDK. The Rust toolchain is needed only to build the reachability analyzer from source (`analyzers/reach`), for example on a platform the package does not bundle it for; GNAT/GNATprove will be needed once the SPARK kernel lands.
 
 ```bash
 git clone https://github.com/codeoops-dev/deprisk.git
@@ -177,7 +196,7 @@ Commands marked *(planned)* do not exist yet; the table in [Feature status](#fea
 | `deprisk match [path]` | Match the resolved dependencies against local OSV advisories: `--advisories <dir\|.zip\|.json>` (required), `--ecosystem`, `--format table\|json`, `--out`, `--strict`. Offline; matching is by version only. |
 | `deprisk rank [path]` | Like `match`, ordered by the baseline method: CISA KEV, then EPSS, then CVSS v3 base score. `--advisories <...>` (required), `--epss <csv[.gz]>`, `--kev <json>`, `--ecosystem`, `--format table\|json\|sarif`, `--out`, `--strict`; optionally `--symbols <file\|dir>` (with `--source`, `--analyzer`, `--entrypoints`, `--entrypoint`, `--timeout`) adds a reachability verdict to each finding without changing the order. Offline; the reference (B2) for the later model. |
 | `deprisk graph [path]` | The dependency hypergraph of the resolved graph: nodes, hyperedges (one per package version that requires something, plus a project hyperedge), every requirement checked against the resolved version (violated and undecided ones are listed), statistics. NuGet and npm (for npm, requirements are resolved the way Node does it and ranges are node-semver). `--ecosystem`, `--format table\|json\|dot`, `--out`. Offline. |
-| `deprisk reach [path]` | For every advisory that applies, can the vulnerable code be reached from your application (C# for NuGet, JavaScript and TypeScript for npm)? `--advisories <...>` and `--symbols <file\|dir>` (required; see [docs/symbol-maps.md](docs/symbol-maps.md)), `--source <dir>`, `--entrypoints auto\|public-api\|none`, `--entrypoint <Ns.Type.Method>` (C#) or `--entrypoint <path/file.js::name>` (npm), `--analyzer <file>` (or `DEPRISK_REACH`; build it from `analyzers/reach`, it is not in the NuGet package yet), `--timeout`, `--format table\|json`, `--out`. Offline. |
+| `deprisk reach [path]` | For every advisory that applies, can the vulnerable code be reached from your application (C# for NuGet, JavaScript and TypeScript for npm)? `--advisories <...>` and `--symbols <file\|dir>` (required; see [docs/symbol-maps.md](docs/symbol-maps.md)), `--source <dir>`, `--entrypoints auto\|public-api\|none`, `--entrypoint <Ns.Type.Method>` (C#) or `--entrypoint <path/file.js::name>` (npm), `--analyzer <file>` (or `DEPRISK_REACH`) to use another analyzer binary; by default the one bundled with the NuGet package is used (linux-x64, linux-arm64, osx-x64, osx-arm64, win-x64; elsewhere build it from `analyzers/reach`), `--timeout`, `--format table\|json`, `--out`. Offline. |
 | `deprisk symbols template [path]` | Which advisory and package pairs of your project have no symbol map entry yet, and a draft for them. `--advisories <...>` (required), `--symbols <file\|dir>` (leave out what is already covered), `--ecosystem`, `--format table\|json`, `--out <file>` (never replaces an existing file without `--force`), `--strict`. The draft has empty `symbols`, `complete: null` and an empty `source` on purpose: `reach` and the other commands refuse it until you have filled in all three; no symbols are proposed ([docs/symbol-maps.md](docs/symbol-maps.md), ADR 0024). Offline. |
 | `deprisk symbols check [path]` | Do the symbol maps still fit this project? Counts the entries that apply and lists the unused ones, the incomplete ones (`complete: false`), complete ones on transitive-only packages, and the pairs still missing. `--advisories <...>` and `--symbols <file\|dir>` (required), `--fail-on missing,incomplete,unused` (exit 1 when a condition holds), `--ecosystem`, `--strict`. Table output; checks fit, not the correctness of the symbols ([docs/symbol-maps.md](docs/symbol-maps.md), ADR 0025). Offline. |
 | `deprisk rank --model risk` | Risk distributions by seeded Monte Carlo (`R = Reach x Exploit x Impact`): per finding mean, p50, p90, p95, cvar95, and the baseline rank for comparison. `--samples`, `--seed`, `--rank-by mean\|p50\|p90\|p95\|cvar95`, `--risk-params <file>`. Uses reachability when `--symbols` is given. The built-in parameters are **uncalibrated placeholders** and say so in every result (ADR 0015). |
@@ -193,10 +212,32 @@ Commands marked *(planned)* do not exist yet; the table in [Feature status](#fea
 | `deprisk bench calibrate --cases <manifest.json> --out <risk-params.json>` | Fit the Reach factor of the risk model on the `dev` split (a Beta posterior per reachability label; `--prior uniform\|current`, `--min-count`, `--risk-params`) and write a complete parameters file with a provenance note. Judge it on the `test` split with `deprisk bench --split test --risk-params <file>`. Exploit and Impact are not fitted. ADR 0018. |
 | `deprisk ci [path]` | One-shot CI mode: like `rank`, plus a policy gate. `--fail-on <expression>` (see below) makes it exit with code 1 when a finding matches; `--format table\|json\|sarif`, `--out`; optionally `--symbols <file\|dir>` with `--source`, `--analyzer`, `--entrypoints`, `--entrypoint`, `--timeout` (as for `reach`) to add reachability and use it in the gate. The verdict is printed on standard error so json and sarif on standard output stay clean. |
 | `deprisk doctor` | Diagnose the installation. |
+| `deprisk version` | Print the version. |
+| `deprisk help` | Show the command list and options (`deprisk --help` does the same). |
 
 ### When `vex` says "not affected"
 
 A VEX statement is made for other people to rely on, so `not_affected` is the hardest status to earn. `deprisk vex` writes it only for a finding whose reachability verdict is `unreachable`, which itself requires a symbol list declared `complete`, every source file read, no unreadable reflection or call on a value of unknown type in the reachable code, and a direct dependency; `vex` then checks again that the package is a direct dependency everywhere it occurs, that no file was skipped or unreadable, and that the symbol list has provenance. If any condition fails, the statement is `under_investigation` with a note. Without `--symbols` every statement is `under_investigation`. The impact statement names the analyzer, the digest of the analyzed sources, and the digest of the symbol maps. It is a statement about a conservative call graph, not a proof (ADR 0016).
+
+### Examples
+
+These work today.
+
+```bash
+# VEX statements to share with customers (`not_affected` only under the strict conditions above)
+deprisk vex --product pkg:nuget/App@1.0.0 --author "Example Corp" --advisories NuGet.zip --symbols symbols/ --out vex.json
+
+# Sign it (a DSSE envelope with an in-toto statement; the key is an ECDSA P-256 key in PEM form, for example from
+# `openssl ecparam -name prime256v1 -genkey -noout -out vex.key`) and let a customer verify it with the public key
+deprisk vex --product pkg:nuget/App@1.0.0 --author "Example Corp" --advisories NuGet.zip --symbols symbols/ --sign --key vex.key --subject-file App.1.0.0.nupkg --out vex.intoto.json
+deprisk vex verify vex.intoto.json --pubkey vex.pub --subject-file App.1.0.0.nupkg
+
+# Gate a build on what is not proven unreachable
+deprisk ci --advisories NuGet.zip --symbols symbols/ --fail-on "kev&fixable,cvss>=9&not-unreachable"
+
+# Reproducible risk run
+deprisk rank --advisories NuGet.zip --symbols symbols/ --model risk --seed 42 --samples 5000
+```
 
 ### Examples (planned commands)
 
@@ -208,14 +249,6 @@ deprisk plan --budget 8h --risk-aversion 0.4 --cvar-alpha 0.95
 
 # Forbid major-version bumps for specific packages
 deprisk plan --budget 4h --pin lib-x --no-major lib-y
-
-# Export "not affected" statements to share with customers
-deprisk vex --status not_affected --out vex.json
-
-# Sign it (a DSSE envelope with an in-toto statement; the key is an ECDSA P-256 key in PEM form, for example from
-# `openssl ecparam -name prime256v1 -genkey -noout -out vex.key`) and let a customer verify it with the public key
-deprisk vex --product pkg:nuget/App@1.0.0 --author "Example Corp" --sign --key vex.key --subject-file App.1.0.0.nupkg --out vex.intoto.json
-deprisk vex verify vex.intoto.json --pubkey vex.pub --subject-file App.1.0.0.nupkg
 
 # Reproducible run
 deprisk plan --seed 42 --solver cbc --out plan.json
@@ -291,6 +324,8 @@ subject to   Σ_v x_{p,v} = 1                       for every package p     (one
 
 ## Architecture
 
+The diagram is the **target** architecture. Built today: ingest and the hypergraph, the reachability analyzer, the risk model, the CLI commands and the audit log. Not built yet: the optimizer, the SPARK kernel, signed bundles and the local store.
+
 ```mermaid
 flowchart LR
     subgraph Inputs
@@ -335,34 +370,32 @@ flowchart LR
 | C# core | Fast to evolve; strong typing for the model and optimizer glue. |
 | Rust analyzer | Performance and memory safety for parsing untrusted source at scale. |
 | SPARK kernel | Small trusted base with machine-checked proofs; keeps the optimizer out of the trust boundary. |
-| SQLite local store | No database to install. A PostgreSQL backend for team/server mode is on the [roadmap](#roadmap) and the storage layer is behind an interface. |
+| Local store *(planned)* | Plain files under `.deprisk/` first (no database to install, no dependency); SQLite, and a PostgreSQL backend for team/server mode, later, behind the same storage interface ([roadmap](#roadmap)). |
 | No code execution of scanned projects | Static analysis only. Build/test execution happens only in `apply --validate`, in an explicit sandbox. |
 
-**Repository layout**
+**Repository layout** (what exists today; planned entries are listed after the tree)
 
 ```text
 deprisk/
 ├── src/
-│   ├── DepRisk.Cli/            # commands, config, output formats
-│   ├── DepRisk.Core/           # hypergraph, risk model, optimizer, policy
+│   ├── DepRisk.Cli/            # commands, option parsing, output formats
+│   ├── DepRisk.Core/           # hypergraph, risk model, policy, reachability model
 │   ├── DepRisk.Audit/          # hash-chained signed log
-│   └── DepRisk.Data/           # bundle format, advisory ingestion
+│   └── DepRisk.Data/           # advisory ingestion, scanning, analyzer protocol, risk pipeline
 ├── analyzers/
 │   └── reach/                  # Rust reachability analyzer
-├── kernel/
-│   └── spark/                  # Ada/SPARK plan checker + proofs
-├── benchmarks/
-│   ├── datasets/               # pinned repo snapshots + ground truth manifests
-│   └── results/                # generated by `deprisk bench`
+├── schemas/                    # JSON Schemas of the file formats
+├── build/                      # packaging checks
 ├── docs/
 │   ├── adr/                    # architecture decision records
 │   ├── method.md               # full mathematical specification
-│   └── threat-model.md
-├── paper/                      # preprint sources and reproducibility artifacts
-├── tests/
-├── deprisk.toml.example
-└── Makefile
+│   ├── roadmap.md              # what is done and what remains
+│   ├── symbol-maps.md, benchmarks.md, audit-log.md, threat-model.md
+├── tests/                      # unit tests and fixtures
+└── .github/                    # CI workflows
 ```
+
+*(Planned, not in the repository yet)*: the optimizer and the bundle format in `DepRisk.Core` and `DepRisk.Data`, `kernel/spark/` (Ada/SPARK plan checker and proofs), `benchmarks/` (pinned datasets and generated results), `paper/` (preprint sources), `deprisk.toml.example` and a `Makefile`.
 
 ## Formal verification
 
@@ -408,7 +441,9 @@ Editing, deleting, inserting, or reordering entries is detected. A log alone can
 
 ## Air-gapped operation
 
-DepRisk makes **no network calls** during `scan`, `reach`, `rank`, `plan`, `verify`, or `audit`. Fresh data enters through signed bundles:
+> **Partly planned.** Every command that exists today (`scan`, `graph`, `match`, `reach`, `symbols`, `rank`, `explain`, `vex`, `ci`, `bench`, `audit verify`) makes **no network calls**: you supply the advisory, EPSS and KEV files. The signed bundles below, the `bundle` commands and the data-freshness warning are *planned* (v0.5) and do not exist yet.
+
+DepRisk makes **no network calls** during `scan`, `reach`, `rank`, `plan`, `verify`, or `audit`. Fresh data will enter through signed bundles *(planned)*:
 
 ```bash
 # On a connected machine
@@ -420,7 +455,7 @@ deprisk bundle verify deprisk-bundle-2026-10-27.tar --pubkey release.pub
 deprisk bundle import deprisk-bundle-2026-10-27.tar
 ```
 
-Bundles are versioned and timestamped; DepRisk warns when your data is older than the configured freshness window. No telemetry is collected, ever.
+Bundles will be versioned and timestamped, and DepRisk will warn when your data is older than the configured freshness window *(planned)*. No telemetry is collected, ever.
 
 ## CI/CD integration
 
@@ -446,7 +481,7 @@ Clauses separated by `,` (any clause may fail the gate); each clause is terms jo
 | `unreachable` | the verdict is `unreachable` (needs `--symbols`) |
 | `not-unreachable` | the verdict is anything but `unreachable`: `reachable`, `possibly-reachable`, or `unknown`. The safe way to gate: only what is *proven* unreachable is let through (needs `--symbols`) |
 
-A term about a signal that is not available for a finding is false for it (never "zero"). Examples: `kev` · `kev&fixable,cvss>=9` · `direct&severity>=high`. The reachability terms need `--symbols` (and the analyzer); without it the command stops with an input error instead of letting them silently match nothing, and a finding that was not analyzed matches none of them. Probability quantiles do not exist yet and are rejected with an error, not ignored. Reachability never changes the order of `rank`; it is shown and can be used in the gate. A typical gate: `kev&fixable,cvss>=9&not-unreachable`.
+A term about a signal that is not available for a finding is false for it (never "zero"). Examples: `kev` · `kev&fixable,cvss>=9` · `direct&severity>=high`. The reachability terms need `--symbols` (and the analyzer); without it the command stops with an input error instead of letting them silently match nothing, and a finding that was not analyzed matches none of them. Risk quantiles (for example `p95>=7`) are not gate terms: `rank --model risk` shows them, and `--fail-on` rejects them with an error instead of ignoring them. They are planned for the gate only together with calibrated parameters, so that a build never fails on a placeholder number ([docs/roadmap.md](docs/roadmap.md)). Reachability never changes the order of `rank`; it is shown and can be used in the gate. A typical gate: `kev&fixable,cvss>=9&not-unreachable`.
 
 ### SARIF levels
 
@@ -489,6 +524,8 @@ jobs:
 The advisory, EPSS, and KEV files are third-party data fetched by *your* workflow; DepRisk itself never downloads anything. Their digests and published dates are recorded in the output. A GitHub Action wrapper is on the roadmap.
 
 ## Configuration
+
+> **Planned, not implemented.** No configuration file is read yet; everything is set with command-line options. The file will be a strict subset of TOML read by DepRisk itself (no dependency), and anything outside the subset will be an error, not ignored. The keys below are the design and will change as the commands they configure land ([docs/roadmap.md](docs/roadmap.md)).
 
 `deprisk.toml`:
 
@@ -557,11 +594,11 @@ Claims should be falsifiable. DepRisk ships its own evaluation harness.
 **Reproduce**
 
 ```bash
-make bench                      # full suite, pinned datasets, fixed seeds
-deprisk bench --suite quick     # smoke test, minutes
+deprisk bench --cases <manifest.json>                                  # the comparison on a labeled dataset (exists today)
+deprisk bench calibrate --cases <manifest.json> --out risk-params.json # fit the Reach factor on the dev split (exists today)
 ```
 
-Datasets are pinned by commit hash with ground-truth manifests (known-exploited advisories, historical fix commits). Results land in `benchmarks/results/` as machine-readable files plus generated plots. **No result is reported unless it can be regenerated by these commands.**
+*(Planned)* A one-command suite (`make bench`, `deprisk bench --suite quick`) over datasets pinned by commit hash with ground-truth manifests (known-exploited advisories, historical fix commits), with results in `benchmarks/results/` as machine-readable files plus generated plots. No such dataset exists yet. **No result is reported unless it can be regenerated by these commands.**
 
 **Format and reading guide:** [docs/benchmarks.md](docs/benchmarks.md). B3 is run in two forms: *naive* (keep only findings called reachable) and *conservative* (drop only those called unreachable), so the comparison is fair; B4 and the Pareto and post-plan metrics wait for the planner and the kernel, and every result lists them as not evaluated.
 
@@ -573,9 +610,9 @@ DepRisk analyzes untrusted code and handles security-relevant decisions, so its 
 
 **Security posture**
 
-- Static analysis only; scanned projects are never executed by `scan`/`reach`/`rank`/`plan`.
-- Parsers run in the memory-safe analyzer process; `apply --validate` runs project commands only inside a sandbox you configure.
-- Data bundles are signature-verified before import; unsigned bundles are rejected unless `--insecure-allow-unsigned` is passed (and this is logged).
+- Static analysis only; scanned projects are never executed by `scan`, `reach`, `rank`, `explain` or `vex` (nor by `plan`, once it exists).
+- Parsers run in the memory-safe analyzer process; `apply --validate` (planned) will run project commands only inside a sandbox you configure.
+- *(Planned with the bundles.)* Data bundles will be signature-verified before import; unsigned bundles will be rejected unless `--insecure-allow-unsigned` is passed (and this is logged).
 - No telemetry, no phone-home.
 - See [`docs/threat-model.md`](docs/threat-model.md) for assets, adversaries, and mitigations.
 
@@ -594,44 +631,47 @@ Found a security issue in DepRisk itself? See [`SECURITY.md`](SECURITY.md) for p
 
 ## Feature status
 
-Legend: ✅ implemented · 🚧 in progress · 🗺️ planned
+Legend: ✅ implemented (built, tested, behaves as documented) · 🧪 experimental (built and tested; accuracy or calibration not yet measured on real data) · 🚧 in progress (code unfinished) · 🗺️ planned
 
 | Area | Feature | Status |
 |---|---|---|
 | Ingest | NuGet restore graph (`project.assets.json`) via `deprisk scan` | ✅ |
 | Ingest | NuGet lockfiles (`packages.lock.json`) | 🗺️ |
 | Ingest | npm lockfiles (`package-lock.json`, lockfileVersion 2 and 3, workspaces, aliases) via `deprisk scan`; `rank` and `ci` work for npm too | ✅ |
+| Ingest | npm lockfileVersion 1 | 🗺️ |
+| Ingest | CycloneDX / SPDX SBOM | 🗺️ |
 | Match | Advisory matching: OSV records (dir, .zip, .json), NuGet and npm (SemVer) version ranges, offline, via `deprisk match` | ✅ |
 | Rank | Baseline ranking (KEV, EPSS, CVSS v3 base score; no reachability or uncertainty) via `deprisk rank` | ✅ |
 | Rank | CVSS v4.0 scoring | 🗺️ |
-| Ingest | CycloneDX / SPDX SBOM | 🗺️ |
 | Model | Dependency hypergraph of the resolved graph (NuGet; npm with Node-style path resolution and node-semver ranges), requirement checks, DOT/JSON export via `deprisk graph` | ✅ |
 | Model | Hypergraph with candidate versions and allowed tuples (for the optimizer) | 🗺️ |
-| Analysis | Reachability: C# analyzer (`analyzers/reach`: standalone process with a JSON protocol, conservative call graph, labels reachable / possibly-reachable / unreachable / unknown; the analyzer is bundled with the NuGet package for linux-x64, linux-arm64, osx-x64, osx-arm64 and win-x64 (ADR 0022); elsewhere build it from source) | 🚧 |
-| Analysis | `deprisk reach` with symbol maps ([format](docs/symbol-maps.md)); the analyzer is bundled with the NuGet package for linux-x64, linux-arm64, osx-x64, osx-arm64 and win-x64 (ADR 0022); elsewhere build it from source | 🚧 |
-| Analysis | Reachability labels in `rank` and `ci` output (JSON, table, SARIF property) with `--symbols`; shown, not used for the order | 🚧 |
-| Analysis | Reachability: JS/TS in the CLI for npm projects: `reach`, `rank`, `ci`, `explain`, `vex` with npm symbol maps (`"language": "javascript"`, ADR 0020); the analyzer is bundled with the NuGet package for linux-x64, linux-arm64, osx-x64, osx-arm64 and win-x64 (ADR 0022); elsewhere build it from source; symbol data for real advisories has to be written (the fixtures are synthetic) | 🚧 |
-| Analysis | `deprisk symbols template`: worklist and draft symbol map entries for the advisory and package pairs without one (the draft is refused until filled in; no symbols are proposed, ADR 0024) | 🚧 |
-| Analysis | `deprisk symbols check`: do the symbol maps still fit the project (unused, incomplete, missing entries) with an optional `--fail-on` gate (ADR 0025) | 🚧 |
+| Analysis | Reachability analyzer (`analyzers/reach`: standalone Rust process with a JSON protocol, conservative call graph, labels reachable / possibly-reachable / unreachable / unknown) for C# and for JavaScript and TypeScript (ADR 0012, ADR 0019); bundled with the NuGet package for linux-x64, linux-arm64, osx-x64, osx-arm64 and win-x64 (ADR 0022), elsewhere build it from source | 🧪 |
+| Analysis | `deprisk reach` and the reachability labels in `rank`, `ci`, `explain` and `vex`, for NuGet and npm projects, with symbol maps ([format](docs/symbol-maps.md), ADR 0013, ADR 0020); shown, not used for the order. Symbol data for real advisories has to be written (the fixtures are synthetic) | 🧪 |
+| Analysis | Guards: an answer is never `unreachable` for a symbol list that is not declared complete (ADR 0023), and an analyzer answer whose label and reason contradict each other is refused (ADR 0026) | ✅ |
+| Analysis | `deprisk symbols template` (worklist and draft entries, refused until filled in; no symbols are proposed) and `deprisk symbols check` (do the maps still fit the project, optional `--fail-on` gate); ADR 0024, ADR 0025 | ✅ |
 | Analysis | Symbol mining from fix commits | 🗺️ |
-| Analysis | JavaScript and TypeScript reachability in the analyzer (ADR 0019): ES modules and CommonJS, classes and declared types, callbacks, decorated classes, workspace packages, package symbols like `lodash::template`; conservative (`unreachable` only when nothing could hide a path).| 🚧 |
-| Risk | Uncertainty model: `rank --model risk` gives each finding a risk distribution (seeded Monte Carlo over Reach x Exploit x Impact; mean, p50, p90, p95, cvar95) next to its baseline rank. The parameters are **uncalibrated placeholders** (shown in every result); calibration on labeled cases is still to do | 🚧 |
-| Eval | `deprisk bench`: labeled-case benchmark harness with baselines B1/B2/B3, a held-out split, a temporal leakage guard, reachability against ground truth, and calibration measures (ADR 0017). Only a synthetic smoke dataset exists; **no benchmark result has been produced yet** | 🚧 |
+| Risk | Uncertainty model: `rank --model risk` gives each finding a risk distribution (seeded Monte Carlo over Reach x Exploit x Impact; mean, p50, p90, p95, cvar95) next to its baseline rank. The parameters are **uncalibrated placeholders** (shown in every result) until fitted on real labeled cases | 🧪 |
+| Eval | `deprisk bench` and `bench calibrate`: labeled-case benchmark harness with baselines B1/B2/B3, a held-out split, a temporal leakage guard, reachability against ground truth, calibration measures and a fit of the Reach factor (ADR 0017, ADR 0018). Only a synthetic smoke dataset exists; **no benchmark result has been produced yet** | ✅ |
 | Plan | MILP optimizer with CVaR | 🗺️ |
 | Verify | SPARK kernel (P1–P6) | 🗺️ |
+| Config | `deprisk.toml` (a strict TOML subset read by DepRisk itself) | 🗺️ |
+| Store | Local store under `.deprisk/`, a gate on new findings only, a data freshness policy | 🗺️ |
 | Audit | Hash-chained signed log, `init`, `audit verify` (head pinning included) | ✅ |
+| Audit | Passphrase-protected audit key; streaming verification of large logs | 🗺️ |
 | Audit | Merkle checkpoints and external anchoring | 🗺️ |
 | Offline | Signed bundles | 🗺️ |
 | Output | SARIF 2.1.0 and JSON for ranked findings (`rank`, `ci`) | ✅ |
-| Output | OpenVEX 0.2.0 export via `deprisk vex` (`not_affected` only under strict conditions, ADR 0016), checked in CI against the official OpenVEX JSON schema; signed as a DSSE envelope with an in-toto statement and verifiable with `deprisk vex verify` (ADR 0021) | 🚧 |
-| Output | `deprisk explain`: evidence, reachability path, risk, and what would change it, as text or JSON | 🚧 |
+| Output | OpenVEX 0.2.0 export via `deprisk vex` (`not_affected` only under strict conditions, ADR 0016), checked in CI against the official OpenVEX JSON schema; signed as a DSSE envelope with an in-toto statement and verifiable with `deprisk vex verify` (ADR 0021). A statement is only as sound as the reachability verdict under it | ✅ |
+| Output | `deprisk explain`: evidence, reachability path, risk, and what would change it, as text or JSON (every sentence from a fixed template) | ✅ |
+| Output | Optional local-LLM narrative | 🗺️ |
 | CI | `deprisk ci` + policy gate (`kev`, `ransomware`, `direct`, `fixable`, `cvss`, `epss`, `severity`) | ✅ |
-| CI | Reachability terms in the policy gate (`reachable`, `possibly-reachable`, `reach-unknown`, `unreachable`, `not-unreachable`); the analyzer is bundled with the NuGet package for linux-x64, linux-arm64, osx-x64, osx-arm64 and win-x64 (ADR 0022); elsewhere build it from source | 🚧 |
+| CI | Reachability terms in the policy gate (`reachable`, `possibly-reachable`, `reach-unknown`, `unreachable`, `not-unreachable`) | ✅ |
+| CI | Risk quantiles as gate terms (only with calibrated parameters) | 🗺️ |
 | CI | GitHub Action wrapper | 🗺️ |
-| Explain | Deterministic evidence report | 🗺️ |
-| Explain | Optional local-LLM narrative | 🗺️ |
+| Distribution | Run-time checksum of the bundled analyzer, analyzers for linux-musl-x64 and win-arm64, a pinned Rust toolchain | 🗺️ |
+| CLI | `doctor --format json`, a different key location for `init` | 🗺️ |
 
-*(Update this table as features land; it is the source of truth for what works today. Shipped in `0.1.0-alpha.1`: every row marked ✅; `0.2.0-alpha.1` adds the reachability, uncertainty, `explain`, `vex`, and `bench` rows, marked 🚧 because they await real symbol data and a real benchmark.)*
+*(Update this table as features land; it is the source of truth for what works today. ✅ means the feature does what its documentation says; it does not mean the numbers it produces have been validated. Where they have not been, the row is 🧪, and no accuracy figure appears anywhere in this README until a benchmark on real data has produced one. Shipped in `0.1.0-alpha.1`: the rows that were ✅ then; `0.2.0-alpha.1` adds the reachability, uncertainty, `explain`, `vex`, `symbols` and `bench` rows.)*
 
 ## Roadmap
 

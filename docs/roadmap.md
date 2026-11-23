@@ -1,48 +1,44 @@
 # Roadmap: what is done and what remains
 
-This page is the working list behind the short [Roadmap](../README.md#roadmap) in the README. It says what each phase still needs, in the order it is meant to be done, and which items need data or a decision from the maintainer rather than code. Release versions follow the phases: pre-release `-alpha.N` until a phase is complete, and no new release is cut until the work below it is done.
+This page is the working list behind the short [Roadmap](../README.md#roadmap) in the README. It says what each phase still needs, in the order it is done, and which items wait on data from the maintainer. Release versions follow the phases: pre-release `-alpha.N` until a phase is complete, and no new release is cut until the work below it is done.
 
 ## How the phases are kept compatible
 
 Later versions extend; they do not change what earlier ones accept or produce.
 
 - A new option, field, subcommand or output is **added**. An input that was accepted keeps its meaning; an output field keeps its name, type and meaning.
-- When two commands disagree, the more accepting rule becomes the shared one (as with whole-number options in S21), so no command line that worked stops working.
+- When two commands disagree, the more accepting rule becomes the shared one (as with whole-number options), so no command line that worked stops working.
 - A breaking change to a file format needs a new `schemaVersion` and a note in the ADR; until then a format only grows.
-- Code that must serve both old and new callers keeps the old entry point and adds an overload or an optional parameter (as `AnalysisArgs.RequireAdvisories` did).
+- Code that must serve both old and new callers keeps the old entry point and adds an overload or an optional parameter.
+- Documentation moves with the code: every change sweeps the README (status marks, present-tense sentences, Usage table, `--help`), and tests fail when the command list, the status legend, links or ADR references drift.
 
-## v0.2: reachability (shipped as `0.2.0-alpha.1`, completed here before v0.3 starts)
+## v0.2: two milestones
 
-Done: C# and JS/TS reachability, the uncertainty model, `explain`, signed OpenVEX, the benchmark harness, the bundled analyzer, `symbols template` (ADR 0024), `symbols check` (ADR 0025), the checks that stop an incomplete list or a contradictory answer from becoming `unreachable` (ADR 0023, ADR 0026), one shared way to read option values and whole numbers in every command (S20, S21), and one set of risk-model options for `rank`, `ci`, `explain`, `vex` and `bench` (S21).
+1. **v0.2 code-complete** (this page, below): everything in the tables that needs no real data. The next release (`0.2.0-alpha.2`) is cut only after this.
+2. **v0.2 research-complete**: real symbol maps, a first labeled dataset, a first benchmark result, calibrated parameters. This depends on the maintainer's data and is published with v0.4 ("first published benchmark results" in the README roadmap); it does not block v0.3.
 
-### Items left over from v0.1 and v0.2 (found by reading the README Feature status table against the code)
+Done: C# and JS/TS reachability, the uncertainty model, `explain`, signed OpenVEX, the benchmark harness, the bundled analyzer, `symbols template` (ADR 0024), `symbols check` (ADR 0025), the checks that stop an incomplete list or a contradictory answer from becoming `unreachable` (ADR 0023, ADR 0026), one way to read option values and whole numbers in every command, one set of risk-model options for `rank`, `ci`, `explain`, `vex` and `bench`.
 
-These were planned, listed in the README, and not built. They are finished before v0.3 where they do not need a decision, because v0.3 (budgets, pins, history) leans on some of them.
+### Order of the remaining v0.2 work
 
-| Item | Needs | Notes |
+Each line is one slice; the order follows the dependencies (docs first, then inputs, then distribution, then the pieces v0.3 leans on).
+
+| Slice | Work | Needs |
 |---|---|---|
-| NuGet `packages.lock.json` ingest, `package-lock.json` lockfileVersion 1 | Code only | README Ingest rows |
-| CVSS v4.0 scoring | Code only | README Rank row; ADR 0007 names it as a follow-up |
-| CycloneDX and SPDX SBOM ingest | Code only | README Ingest row; components with a package URL for NuGet and npm |
-| `doctor --format json`, a different key location for `init`, streaming `audit verify` for large logs | Code only | Small items listed with the v0.1 slices |
-| README: the Feature status table lists `explain` twice (in progress and planned) | Docs only | Merge the rows |
-| `deprisk.toml` configuration | A decision | See the options below |
-| Local store (ADR 0002), baseline and new-findings-only gating, data freshness policy | A decision | Needs a storage dependency; see below |
-| Passphrase-protected private key for the audit log | A decision | Security-sensitive: how the passphrase is supplied non-interactively in CI |
-| Symbol mining from fix commits | A decision | Analysis is offline; mining needs a separate, network-using tool and its own trust model |
-| Merkle checkpoints and anchoring audit heads outside the machine | Later | README "Later" |
+| S22 | Documentation sweep: the README status legend with the experimental mark, labels on design-only sections, the stale sentences, the `ci --help` text, the contributor checklist, and the documentation consistency tests | Code (small) and docs |
+| S23 | NuGet `packages.lock.json` and npm `package-lock.json` lockfileVersion 1 ingest | Code |
+| S24 | CVSS v4.0 scoring | Code |
+| S25 | CycloneDX and SPDX SBOM ingest (components with a package URL for NuGet and npm) | Code |
+| S26 | Small v0.1 items: `doctor --format json`, a key location for `init`, streaming `audit verify`; passphrase-protected audit key | Code |
+| S27 | Pinned Rust toolchain (`rust-toolchain.toml`, used by every workflow) | Code and CI |
+| S28 | Analyzers for `linux-musl-x64` and `win-arm64` (build matrix, runtime identifier mapping, packaging) | Code and CI runners; verified only by CI |
+| S29 | Run-time checksum of the bundled analyzer | Code |
+| S30 | `deprisk.toml` configuration (strict TOML subset) | Code |
+| S31 | Local store under `.deprisk/`, gate on new findings only, data freshness policy | Code |
+| S32 | Analyzer answers: path consistency (ADR 0026 limit) | Code, careful |
+| S33 | `deprisk symbols mine` from a local clone (the last v0.2 slice) | Code and a trust boundary decision for running `git` |
 
-### Engineering that does not wait on v0.3
-
-| Item | Needs | Notes |
-|---|---|---|
-| Pinned Rust toolchain for reproducible analyzer builds | Code and CI | ADR 0022 records that `stable` is used today; pin with `rust-toolchain.toml` and use it in every workflow |
-| Analyzers for `linux-musl-x64` and `win-arm64` | Code and CI runners | Build matrix, runtime identifier mapping in the locator, packaging; verified only by CI |
-| Code signing and a run-time checksum check of the bundled analyzer | A decision | Options below |
-| Sigstore (keyless) signing of VEX documents | A trust decision | |
-| JSON output for `symbols check` | Only if a consumer needs it | Would come with its own schema |
-| Reachable and unknown answers: path consistency | Code, careful | ADR 0026 limit: needs the analyzer's own rules before a check can be added |
-| Micro-averaged metrics view, provenance check in the leakage guard, hierarchical Reach fit, correlated sampling, per-asset impact | Research design | From the benchmark and uncertainty ADRs; per-asset impact needs the configuration file |
+Items that wait for real data and are not scheduled until it exists: the micro-averaged metrics view and the provenance check in the leakage guard (bench polish), the hierarchical Reach fit, correlated sampling, risk quantiles as gate terms (only with calibrated parameters), and per-asset impact (after S30).
 
 ### Needs the maintainer's data
 
@@ -51,26 +47,33 @@ These were planned, listed in the README, and not built. They are finished befor
 | Real symbol maps for real npm and NuGet advisories | Start from `deprisk symbols template`, keep them honest with `deprisk symbols check`. This is the bottleneck of the research claim |
 | First real labeled benchmark dataset, then calibration and fitting of Exploit and Impact | Goes under `benchmarks/datasets/` with the first dataset |
 
-### Decisions the leftover items wait on (options)
+## Decisions taken (2026-11-23)
 
-**Configuration file (`deprisk.toml`).** The product projects have no package dependencies today.
-(a) A TOML library: least code, one dependency in a security tool. (b) A small hand-written parser for the subset DepRisk needs: no dependency, more code to test, and a bug there is ours. (c) JSON with the same keys, validated by a schema like every other file: no dependency and consistent with the rest of the formats, but less pleasant to write by hand and has no comments. A decision here also settles the policy file that v0.3 needs (pins, forbidden versions, no-major rules).
-
-**Local store (ADR 0002).** (a) SQLite through a library: the ADR's own choice, brings a native component per platform. (b) Plain files under `.deprisk/` (JSON lines, atomically replaced): no dependency, enough for "findings seen before" and a freshness date, not for queries. The new-findings-only gate and freshness policy only need (b) to start; team mode needs (a).
-
-**Run-time checksum and signing of the bundled analyzer.** (a) Embed the expected SHA-256 of each analyzer in the CLI assembly at pack time and check before every run: the hashes travel inside the signed NuGet package, so replacing only the binary is detected. (b) A manifest file beside the binaries: simpler, but an attacker who can replace the binary can replace the manifest. (c) Code signing the binaries per platform: stronger, costs certificates and a signing step per platform. (a) is the proposal; (c) is a separate decision about money and keys.
+| Subject | Decision | Why and conditions |
+|---|---|---|
+| Status marks in the README | Four marks: ✅ built and documented, 🧪 built but not validated on real data, 🚧 unfinished code, 🗺️ planned | Honest about both progress and evidence; no accuracy figure appears until a real benchmark has produced one |
+| Design-only README sections | Kept and labeled *(planned)*; commands and files that do not exist are not shown as if they did | The vision stays visible without overstating what is built |
+| Documentation drift | A sweep in every slice (CONTRIBUTING checklist) and consistency tests in the normal test run | A forgotten README becomes a failing build |
+| Configuration | `deprisk.toml`, a strict TOML subset read by DepRisk itself: no dependency, anything outside the subset is an error | The product projects have no package dependencies today, which is part of the trust story |
+| Local store | Plain files under `.deprisk/` first behind the storage interface; SQLite and PostgreSQL later as further implementations of it | Enough for "seen before" and freshness; adds no dependency |
+| Symbol mining | `deprisk symbols mine` from a clone the user provides, offline; its drafts stay `complete: null` and need a person to decide | Same rule as `symbols template`: a machine never declares a list complete. Running `git` against a clone needs its own explicit trust-boundary note first |
+| Risk quantiles in the gate | Only with a calibrated parameters file; otherwise an input error | A build must never fail on a placeholder number |
+| Run-time checksum of the analyzer | The SHA-256 of each bundled analyzer is embedded in the CLI assembly at pack time and checked before every run; a mismatch refuses to run (exit code 3). A binary chosen with `--analyzer` is the user's own choice and is not checked | The hashes travel inside the signed NuGet package, so replacing only the binary is detected. Code signing of the binaries is a separate decision about certificates and money, needed before a release candidate |
+| Audit key | Optional passphrase through encrypted PKCS#8 (built into .NET), read from an environment variable or a file, never from the command line; a key without a passphrase keeps working | Additive and non-interactive, so it works in CI |
+| VEX signing | The key-based DSSE signing stays; no keyless signing (it needs the network); offline verification of Sigstore bundles may be added later | Keeps the offline guarantee |
+| Candidate versions for plans (v0.3) | A catalog file of package versions and their requirements, produced by a separate step that may use the network and read offline by analysis. A local package cache may be one producer of the catalog, not the source | Plans must stay provably consistent with the dependency constraints; data DepRisk already has is not enough |
+| Optimizer (v0.3) | A separate process with a JSON protocol, like the reachability analyzer; a solver-free baseline (greedy within the budget) comes first | The untrusted-optimizer boundary stays explicit and the solver stays swappable. The concrete solver is chosen by building and benchmarking, not assumed |
+| `plan.v1`, policy file, effort model (v0.3) | As in `docs/method.md` sections 5 to 7: integer costs, only changed packages as `from -> to`, claimed fixed advisories, digests of inputs, seed and solver identity, `schemaVersion`; the policy file uses the configuration format; effort parameters declared uncalibrated | One ADR each, written before the code |
 
 ## v0.3: optimizer, plan format, `plan` and `apply --dry-run`
 
-Not started. The design is in [`docs/method.md`](method.md), sections 5 to 7: binary choices `x(p,v)` (one version per package), hyperedge consistency through binaries `z(e,t)` over allowed tuples, an effort budget, pins and forbidden pairs, and a scenario-based CVaR objective linearized with `η` and `u(s)`. The optimizer is not trusted: the plan is checked by the kernel (v0.4), which is why the plan must be integer-based and self-describing.
+Not started. Starts after v0.2 code-complete. The design is in [`docs/method.md`](method.md), sections 5 to 7. Order, each step behind an ADR:
 
-Proposed order, each step behind an ADR:
-
-1. **ADR: where candidate versions come from.** The central open question. The model needs, for each package, the candidate versions and the dependency requirements of each, and analysis is offline. Options: (a) only versions DepRisk already knows (installed, and the fixed versions in the advisory data), with requirements for those unknown, so tuples cannot be checked: weak, because a plan could break a hyperedge; (b) a catalog file of package versions and their requirements, produced by a separate step that may use the network and consumed offline, which fits the signed offline bundles of v0.5; (c) read what the local package caches already hold: offline, but only for versions already downloaded.
-2. **ADR: optimizer architecture and solver.** (a) A separate process with a JSON protocol, like the reachability analyzer (ADR 0012, ADR 0022): the untrusted boundary is explicit, the solver is swappable behind the protocol, no native library is loaded into the .NET process, and packaging reuses the analyzer's platform matrix; the cost is one more binary per platform. (b) An in-process .NET binding to a native solver (HiGHS, OR-Tools): simplest to call, strongest solvers, but a heavy native dependency in a project with none, per-platform natives and a larger in-process attack surface. (c) An external solver executable fed LP files: small, but an install burden and version drift. (d) Our own exact solver: no dependency, but it means writing a MILP solver. Which Rust or native solver to start with is to be checked by building and benchmarking, not assumed. Whatever is chosen, a solver-free baseline (greedy within the budget) comes first so there is always something to compare against.
-3. **ADR: `plan.v1` and the policy file.** Costs as scaled integers (the kernel is integer-only); only changed packages as `from -> to`; claimed fixed advisories; digests of the hypergraph, advisories and policy; seed, scenario count, solver identity and version; `schemaVersion`. The policy file format follows the configuration decision above.
-4. **Effort model.** `base(change class)` table and `use(p, v0 -> v)` default by change class, as in method.md section 5, with the parameters declared uncalibrated, as the risk parameters are.
-5. A plan data model and the baseline plan, then the MILP and CVaR objective behind the same interface, then `plan` and `apply --dry-run` with audit entries.
+1. **ADR: the catalog of candidate versions** (format, who produces it, how it is signed and consumed offline).
+2. **ADR: the optimizer process and its protocol**, then the solver-free baseline plan so the verifier and the benchmark have something to compare against.
+3. **ADR: `plan.v1` and the policy file.**
+4. **ADR: the effort model** (`base(change class)` table and the default for `use`), parameters uncalibrated.
+5. The MILP and CVaR objective behind the same protocol, then `plan` and `apply --dry-run` with audit entries.
 
 ## v0.4 to v1.0
 

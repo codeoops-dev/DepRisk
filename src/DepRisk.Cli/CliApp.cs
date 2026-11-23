@@ -146,7 +146,7 @@ internal static class CliApp
         output.WriteLine("                  --symbols <file|dir> (adds reachability; also --source --analyzer --entrypoints --entrypoint --timeout)");
         output.WriteLine("                  --model baseline|risk (risk: seeded Monte Carlo; also --samples --seed --rank-by mean|p50|p90|p95|cvar95 --risk-params <file>)");
         output.WriteLine("  ci [path]     Like rank, plus a policy gate: exit code 1 if a finding matches --fail-on");
-        output.WriteLine("                  --fail-on \"kev&fixable,cvss>=9\"  (terms: any kev ransomware direct fixable cvss>=N epss>=P severity>=LEVEL)");
+        output.WriteLine("                  --fail-on \"kev&fixable,cvss>=9\"  (terms: any kev ransomware direct fixable cvss>=N epss>=P severity>=LEVEL; with --symbols also reachable possibly-reachable reach-unknown unreachable not-unreachable)");
         output.WriteLine("                  --format table|json|sarif  --out <file>  (verdict is printed on standard error)");
         output.WriteLine("  bench --cases <manifest.json>  Compare the baselines (B1 CVSS, B2 KEV/EPSS/CVSS, B3 reachable-only) with the risk model on labeled cases");
         output.WriteLine("                  --split dev|test|all  --samples <n>  --seed <n>  --rank-by <stat>  --risk-params <file>  --bootstrap <n>  --analyzer <file>");
