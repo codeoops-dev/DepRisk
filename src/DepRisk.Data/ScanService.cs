@@ -3,18 +3,23 @@ using DepRisk.Core;
 using DepRisk.Core.Model;
 using DepRisk.Data.NuGet;
 using DepRisk.Data.Npm;
+using DepRisk.Data.Sbom;
 
 namespace DepRisk.Data;
 
-/// <summary>A scan result plus the digest of everything that was read to produce it (for the audit log).</summary>
-public sealed record ScanOutcome(ScanResult Result, string InputsDigest);
+/// <summary>
+/// A scan result plus the digest of everything that was read to produce it (for the audit log). <c>IsSbom</c> says the graph was read
+/// from an SBOM: it has no version ranges and no install paths (ADR 0029).
+/// </summary>
+public sealed record ScanOutcome(ScanResult Result, string InputsDigest, bool IsSbom = false);
 
 /// <summary>
 /// Builds a <see cref="ScanResult"/> from the dependency files found at a path: NuGet <c>project.assets.json</c> (written by
 /// <c>dotnet restore</c>) or <c>packages.lock.json</c>, or npm <c>package-lock.json</c>. One scan reads one ecosystem; when it is
 /// not named, it is detected from the files found, and a tree that has both is an error that asks the caller to choose (ADR 0010).
 /// For a NuGet project that has both an assets file (in its <c>obj</c> directory) and a lock file, the assets file is read and the
-/// lock file is not, so one project is never counted twice (ADR 0027).
+/// lock file is not, so one project is never counted twice (ADR 0027). A path to one file can also be a CycloneDX or SPDX SBOM
+/// (ADR 0029): never found by searching a directory, only by being named.
 /// </summary>
 public static class ScanService
 {
@@ -30,6 +35,12 @@ public static class ScanService
         ArgumentNullException.ThrowIfNull(tool);
 
         string fullPath = Path.GetFullPath(path);
+
+        if (File.Exists(fullPath) && IsSbomFile(fullPath, ecosystem))
+        {
+            return ScanSbom(fullPath, tool, ecosystem);
+        }
+
         (Ecosystem resolved, IReadOnlyList<string> files) = Locate(path, fullPath, ecosystem);
 
         string root = Directory.Exists(fullPath) ? fullPath : Path.GetDirectoryName(fullPath) ?? fullPath;
@@ -55,6 +66,46 @@ public static class ScanService
 
         ScanResult result = new(ScanResult.CurrentSchemaVersion, tool, resolved.Id, loaded.Select(l => l.Graph).ToList());
         return new ScanOutcome(result, Digest.Sha256Hex(inputs.ToString()));
+    }
+
+    /// <summary>
+    /// A file is read as an SBOM when its name says so (bom.json, sbom.json, *.cdx.json, *.spdx.json), or when the ecosystem is named
+    /// and the file, whatever it is called, is not one of the lock or assets files and is a CycloneDX or SPDX document.
+    /// </summary>
+    private static bool IsSbomFile(string fullPath, Ecosystem? requested)
+    {
+        string name = Path.GetFileName(fullPath);
+
+        if (SbomParser.IsSbomFileName(name))
+        {
+            return true;
+        }
+
+        if (requested is null
+            || name.Equals(AssetsFileLocator.FileName, StringComparison.OrdinalIgnoreCase)
+            || name.Equals(NuGetLockFileLocator.FileName, StringComparison.OrdinalIgnoreCase)
+            || name.Equals(NpmLockFileLocator.FileName, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return SbomParser.LooksLikeSbom(DecodeText(ReadBounded(fullPath, name)));
+    }
+
+    private static ScanOutcome ScanSbom(string fullPath, ToolInfo tool, Ecosystem? requested)
+    {
+        string root = Path.GetDirectoryName(fullPath) ?? fullPath;
+        string display = Path.GetRelativePath(root, fullPath).Replace('\\', '/');
+
+        byte[] bytes = ReadBounded(fullPath, display);
+        string fallbackName = Path.GetFileNameWithoutExtension(display);
+
+        (Ecosystem ecosystem, ProjectGraph graph) = SbomParser.Parse(DecodeText(bytes), display, fallbackName, requested);
+
+        ScanResult result = new(ScanResult.CurrentSchemaVersion, tool, ecosystem.Id, [graph]);
+        string inputs = Digest.Sha256Hex(bytes) + "  " + display + "\n";
+
+        return new ScanOutcome(result, Digest.Sha256Hex(inputs), IsSbom: true);
     }
 
     /// <summary>Decides the ecosystem and the files to read. Throws <see cref="InvalidInputException"/> with a hint when there is nothing to read.</summary>
@@ -89,7 +140,7 @@ public static class ScanService
 
             throw new InvalidInputException(
                 $"'{displayPath}' is not a dependency file DepRisk recognizes by name (expected {AssetsFileLocator.FileName} or {NuGetLockFileLocator.FileName} "
-                + $"for NuGet, or {NpmLockFileLocator.FileName} for npm). If it has another name, say what it is with --ecosystem nuget|npm.");
+                + $"for NuGet, {NpmLockFileLocator.FileName} for npm, or bom.json, sbom.json, *.cdx.json or *.spdx.json for an SBOM). If it has another name, say what it is with --ecosystem nuget|npm.");
         }
 
         if (!Directory.Exists(fullPath))
@@ -119,7 +170,7 @@ public static class ScanService
 
         throw new InvalidInputException(
             $"no {AssetsFileLocator.FileName} or {NuGetLockFileLocator.FileName} (NuGet) or {NpmLockFileLocator.FileName} (npm) found under '{displayPath}'. "
-            + "Run 'dotnet restore' or 'npm install' first, or pass the path to the file.");
+            + "Run 'dotnet restore' or 'npm install' first, or pass the path to the file (a CycloneDX or SPDX SBOM is read only when its path is given).");
     }
 
     /// <summary>

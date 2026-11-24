@@ -177,4 +177,68 @@ public sealed class LockfileCommandTests : IDisposable
         (_, string json, _) = Run("scan", _root, "--format", "json");
         Assert.Contains("git+https://***@example.com/org/a.git", json);
     }
+
+    private const string NpmSbom = """
+        { "bomFormat": "CycloneDX", "specVersion": "1.5",
+          "metadata": { "component": { "bom-ref": "root", "name": "demo", "purl": "pkg:npm/demo@1.0.0" } },
+          "components": [
+            { "bom-ref": "debug", "name": "debug", "version": "2.6.9", "purl": "pkg:npm/debug@2.6.9" },
+            { "bom-ref": "ms", "name": "ms", "version": "2.0.0", "purl": "pkg:npm/ms@2.0.0?download_url=https%3A%2F%2Fu%3ATOKEN123%40h%2Fms.tgz" } ],
+          "dependencies": [ { "ref": "root", "dependsOn": [ "debug" ] }, { "ref": "debug", "dependsOn": [ "ms" ] }, { "ref": "ms", "dependsOn": [] } ] }
+        """;
+
+    [Fact]
+    public void Scan_match_and_rank_start_from_an_sbom_and_know_what_is_transitive()
+    {
+        Put("sbom/app.cdx.json", NpmSbom);
+        Put("osv/ms.json", Advisory("GHSA-ms", "npm", "ms", "2.1.3", "SEMVER"));
+        string file = Path.Combine(_root, "sbom", "app.cdx.json");
+        string advisories = Path.Combine(_root, "osv");
+
+        (int scanCode, string scan, _) = Run("scan", file);
+        Assert.Equal((int)ExitCode.Success, scanCode);
+        Assert.Contains("debug", scan);
+        Assert.Contains("1 direct, 1 transitive", scan);
+
+        (int matchCode, string match, _) = Run("match", file, "--advisories", advisories);
+        Assert.Equal((int)ExitCode.Success, matchCode);
+        Assert.Contains("GHSA-ms  ms 2.0.0 (transitive); fixed in 2.1.3", match);
+
+        foreach (string format in new[] { "json", "sarif" })
+        {
+            (int code, string output, string error) = Run("rank", file, "--advisories", advisories, "--format", format);
+            Assert.Equal((int)ExitCode.Success, code);
+            Assert.DoesNotContain("TOKEN123", output);
+            Assert.DoesNotContain("TOKEN123", error);
+        }
+    }
+
+    [Fact]
+    public void Graph_refuses_an_sbom_and_a_directory_scan_does_not_find_one()
+    {
+        Put("sbom/bom.json", NpmSbom);
+
+        (int graphCode, _, string graphError) = Run("graph", Path.Combine(_root, "sbom", "bom.json"));
+        Assert.Equal((int)ExitCode.InvalidInput, graphCode);
+        Assert.Contains("an SBOM records neither", graphError);
+
+        (int scanCode, _, string scanError) = Run("scan", Path.Combine(_root, "sbom"));
+        Assert.Equal((int)ExitCode.InvalidInput, scanCode);
+        Assert.Contains("SBOM is read only when its path is given", scanError);
+    }
+
+    [Fact]
+    public void A_flat_sbom_is_an_input_error_that_says_what_to_do()
+    {
+        Put("sbom/flat.cdx.json", """
+            { "bomFormat": "CycloneDX", "specVersion": "1.5", "metadata": { "component": { "bom-ref": "root", "name": "demo" } },
+              "components": [ { "bom-ref": "a", "purl": "pkg:npm/a@1.0.0" } ] }
+            """);
+
+        (int code, _, string error) = Run("scan", Path.Combine(_root, "sbom", "flat.cdx.json"));
+
+        Assert.Equal((int)ExitCode.InvalidInput, code);
+        Assert.Contains("flat.cdx.json", error);
+        Assert.Contains("records no dependency relationships", error);
+    }
 }

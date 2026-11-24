@@ -61,7 +61,7 @@
           "minLength": 1
         },
         "assetsFile": {
-          "description": "Path of the file the graph was read from (NuGet project.assets.json, npm package-lock.json) relative to the scanned directory, with forward slashes.",
+          "description": "Path of the file the graph was read from (NuGet project.assets.json or packages.lock.json, npm package-lock.json, or a CycloneDX or SPDX SBOM) relative to the scanned directory, with forward slashes; for a single file, its name.",
           "type": "string",
           "minLength": 1
         },

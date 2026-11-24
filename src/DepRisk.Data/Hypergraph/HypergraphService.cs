@@ -18,6 +18,13 @@ public static class HypergraphService
 
         ScanOutcome scan = ScanService.ScanDetailed(scanPath, tool, ecosystem);
 
+        // The hypergraph needs the version ranges the packages declare and, for npm, where they are installed; an SBOM records neither.
+        if (scan.IsSbom)
+        {
+            throw new InvalidInputException(
+                "graph needs the version ranges and the install paths of a lock or assets file; an SBOM records neither. Pass a package-lock.json, packages.lock.json or project.assets.json.");
+        }
+
         return new HypergraphOutcome(HypergraphBuilder.Build(scan.Result), scan.InputsDigest);
     }
 }
