@@ -157,7 +157,7 @@ public class ExplainAndVexTests
         Assert.Contains("transitive dependency", evidence);
         Assert.Contains("not in the CISA KEV catalog (or no KEV data was given)", evidence);
         Assert.Contains("No EPSS value is available", evidence);
-        Assert.Contains("No CVSS v3 score is available; the database rating is MODERATE.", evidence);
+        Assert.Contains("No CVSS v3.x or v4.0 score is available; the database rating is MODERATE.", evidence);
     }
 
     [Fact]

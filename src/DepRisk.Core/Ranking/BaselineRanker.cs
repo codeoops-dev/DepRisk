@@ -65,9 +65,9 @@ public static partial class BaselineRanker
     {
         IReadOnlyList<string> cves = CveIds(finding);
 
-        // CVSS: the highest base score among the v3.x vectors published with the advisory (conservative).
+        // CVSS: the highest base score among the v3.x and v4.0 vectors published with the advisory (conservative).
         CvssSignal? cvss = finding.Scores
-            .Select(s => CvssV3.TryScore(s.Score, out CvssScore? parsed) ? parsed : null)
+            .Select(s => CvssScorer.TryScore(s.Score, out CvssScore? parsed) ? parsed : null)
             .Where(s => s is not null)
             .OrderByDescending(s => s!.BaseScore)
             .ThenByDescending(s => s!.Version, StringComparer.Ordinal)

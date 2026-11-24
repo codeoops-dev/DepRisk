@@ -8,7 +8,7 @@ public sealed record CvssScore(string Version, string Vector, double BaseScore, 
 /// <summary>
 /// CVSS v3.0 / v3.1 base score, implemented from the FIRST specification (section 7: base equations, appendix A: roundup).
 /// Only the eight base metrics are used; temporal and environmental metrics in a vector are ignored.
-/// CVSS v4.0 and v2 vectors are not scored here (they are carried as published, see ADR 0007).
+/// CVSS v4.0 is scored by <see cref="CvssV4"/> (ADR 0028); v2 vectors are not scored (they are carried as published, see ADR 0007).
 /// </summary>
 public static class CvssV3
 {

@@ -114,4 +114,29 @@ public sealed class LockfileCommandTests : IDisposable
         Assert.Contains("web/package-lock.json", error);
         Assert.Contains("web/package.json", error);
     }
+
+    [Fact]
+    public void Rank_scores_an_advisory_that_has_only_a_cvss_v4_vector()
+    {
+        Put("App/packages.lock.json", NuGetLock);
+        Put("osv/core.json", """
+            { "id": "GHSA-v4", "aliases": [], "summary": "v4 only",
+              "severity": [ { "type": "CVSS_V4", "score": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N" } ],
+              "affected": [ { "package": { "ecosystem": "NuGet", "name": "Demo.Core" },
+                "ranges": [ { "type": "ECOSYSTEM", "events": [ { "introduced": "0" }, { "fixed": "1.0.1" } ] } ] } ] }
+            """);
+
+        (int code, string output, _) = Run("rank", _root, "--advisories", Path.Combine(_root, "osv"), "--format", "json");
+
+        Assert.Equal((int)ExitCode.Success, code);
+        using JsonDocument document = JsonDocument.Parse(output);
+        JsonElement cvss = document.RootElement.GetProperty("findings")[0].GetProperty("signals").GetProperty("cvss");
+        Assert.Equal("4.0", cvss.GetProperty("version").GetString());
+        Assert.Equal(9.3, cvss.GetProperty("baseScore").GetDouble());
+        Assert.Equal("CRITICAL", cvss.GetProperty("rating").GetString());
+
+        (int tableCode, string table, _) = Run("rank", _root, "--advisories", Path.Combine(_root, "osv"));
+        Assert.Equal((int)ExitCode.Success, tableCode);
+        Assert.Contains("CVSS 9.3 CRITICAL", table);
+    }
 }

@@ -189,28 +189,60 @@ public class BaselineRankerTests
         Assert.Null(ranked.Signals.Kev);
     }
 
+    private const string V4Critical = "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"; // 9.3
+
     [Fact]
-    public void The_highest_cvss_v3_score_among_the_published_vectors_is_used_and_other_versions_are_ignored()
+    public void The_highest_base_score_among_the_published_v3_and_v4_vectors_is_used()
     {
-        Finding finding = Finding(
-            "A",
-            vectors: [Medium, Critical, "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"]);
+        Finding finding = Finding("A", vectors: [Medium, Critical, V4Critical]);
 
         RankedFinding ranked = Assert.Single(BaselineRanker.Rank([finding], null, null));
 
         Assert.Equal(9.8, ranked.Signals.Cvss!.BaseScore);
+        Assert.Equal("3.1", ranked.Signals.Cvss.Version);
         Assert.Equal("CRITICAL", ranked.Signals.Cvss.Rating);
     }
 
     [Fact]
-    public void Only_a_v4_vector_gives_no_cvss_signal()
+    public void A_v4_vector_is_used_when_it_is_the_highest()
     {
-        Finding finding = Finding("A", vectors: ["CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"], severity: "HIGH");
+        Finding finding = Finding("A", vectors: [Medium, V4Critical]);
+
+        RankedFinding ranked = Assert.Single(BaselineRanker.Rank([finding], null, null));
+
+        Assert.Equal(9.3, ranked.Signals.Cvss!.BaseScore);
+        Assert.Equal("4.0", ranked.Signals.Cvss.Version);
+        Assert.Equal(V4Critical, ranked.Signals.Cvss.Vector);
+    }
+
+    [Fact]
+    public void Only_a_v4_vector_gives_a_cvss_signal_and_the_database_rating_is_kept_beside_it()
+    {
+        Finding finding = Finding("A", vectors: [V4Critical], severity: "HIGH");
+
+        RankedFinding ranked = Assert.Single(BaselineRanker.Rank([finding], null, null));
+
+        Assert.Equal(9.3, ranked.Signals.Cvss!.BaseScore);
+        Assert.Equal("HIGH", ranked.Severity);
+    }
+
+    [Fact]
+    public void Only_a_vector_of_an_unsupported_version_gives_no_cvss_signal()
+    {
+        Finding finding = Finding("A", vectors: ["CVSS:2.0/AV:N/AC:L/Au:N/C:P/I:P/A:P"], severity: "HIGH");
 
         RankedFinding ranked = Assert.Single(BaselineRanker.Rank([finding], null, null));
 
         Assert.Null(ranked.Signals.Cvss);
         Assert.Equal("HIGH", ranked.Severity);
+    }
+
+    [Fact]
+    public void A_v4_vector_orders_findings_by_its_score()
+    {
+        Finding[] findings = [Finding("low-v3", vectors: [Medium]), Finding("high-v4", vectors: [V4Critical])];
+
+        Assert.Equal(new[] { "high-v4", "low-v3" }, Order(BaselineRanker.Rank(findings, null, null)));
     }
 
     [Fact]

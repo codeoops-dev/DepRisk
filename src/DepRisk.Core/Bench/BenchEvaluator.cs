@@ -24,7 +24,7 @@ public static class BenchEvaluator
 
     public static string Describe(string method) => method switch
     {
-        B1 => "CVSS v3 base score only (ties: database severity, then id)",
+        B1 => "CVSS base score only, v3.x or v4.0 (ties: database severity, then id)",
         B2 => "baseline: CISA KEV, then EPSS, then CVSS (the order of 'rank')",
         B3 => "B2 order, keeping only findings the analyzer calls reachable (naive filter; findings of cases without reachability analysis are kept)",
         B3Conservative => "B2 order, dropping only findings the analyzer calls unreachable (conservative filter; unknown and possibly-reachable are kept)",

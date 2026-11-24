@@ -159,7 +159,7 @@ public static class Explainer
             : "No EPSS value is available for it (or no EPSS data was given).");
         lines.Add(f.Signals.Cvss is { } cvss
             ? $"CVSS {SafeText.Clean(cvss.Version, 10)} base score {cvss.BaseScore.ToString("0.0", CultureInfo.InvariantCulture)} ({SafeText.Clean(cvss.Rating, 20)})."
-            : $"No CVSS v3 score is available; the database rating is {(f.Severity is null ? "absent" : SafeText.Clean(f.Severity, 20))}.");
+            : $"No CVSS v3.x or v4.0 score is available; the database rating is {(f.Severity is null ? "absent" : SafeText.Clean(f.Severity, 20))}.");
 
         if (f.Reachability is { } reach)
         {
