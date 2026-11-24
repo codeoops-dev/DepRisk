@@ -139,4 +139,42 @@ public sealed class LockfileCommandTests : IDisposable
         Assert.Equal((int)ExitCode.Success, tableCode);
         Assert.Contains("CVSS 9.3 CRITICAL", table);
     }
+
+    [Fact]
+    public void A_credential_in_a_url_range_reaches_no_output_of_any_command()
+    {
+        const string secret = "TOKEN123";
+        Put("web/package.json", $$"""{ "dependencies": { "a": "git+https://user:{{secret}}@example.com/org/a.git" } }""");
+        Put("web/package-lock.json", $$"""
+            { "name": "demo", "lockfileVersion": 3, "packages": {
+                "": { "name": "demo", "dependencies": { "a": "git+https://user:{{secret}}@example.com/org/a.git" } },
+                "node_modules/a": { "version": "1.0.0", "dependencies": { "b": "git+https://user:{{secret}}@example.com/org/b.git#semver:^1" } },
+                "node_modules/b": { "version": "1.2.0" } } }
+            """);
+        Put("osv/b.json", Advisory("GHSA-b", "npm", "b", "1.3.0", "SEMVER"));
+        string advisories = Path.Combine(_root, "osv");
+
+        string[][] commands =
+        [
+            ["scan", _root, "--format", "json"],
+            ["scan", _root],
+            ["graph", _root, "--format", "json"],
+            ["match", _root, "--advisories", advisories, "--format", "json"],
+            ["rank", _root, "--advisories", advisories, "--format", "json"],
+            ["rank", _root, "--advisories", advisories, "--format", "sarif"],
+            ["rank", _root, "--advisories", advisories],
+        ];
+
+        foreach (string[] command in commands)
+        {
+            (int code, string output, string error) = Run(command);
+
+            Assert.True(code == (int)ExitCode.Success, $"{string.Join(' ', command[..1])} exited {code}: {error}");
+            Assert.DoesNotContain(secret, output);
+            Assert.DoesNotContain(secret, error);
+        }
+
+        (_, string json, _) = Run("scan", _root, "--format", "json");
+        Assert.Contains("git+https://***@example.com/org/a.git", json);
+    }
 }

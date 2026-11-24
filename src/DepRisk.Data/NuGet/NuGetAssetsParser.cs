@@ -142,7 +142,7 @@ public static class NuGetAssetsParser
 
                     if (id.Length > 0)
                     {
-                        ids[id] = requested.Length is > 0 and <= 200 && !requested.Any(char.IsControl) ? requested : null;
+                        ids[id] = requested.Length is > 0 and <= 200 && !requested.Any(char.IsControl) ? UrlCredentials.Mask(requested) : null;
                     }
                 }
             }
@@ -242,7 +242,7 @@ public static class NuGetAssetsParser
                     ? dependency.Value.GetString() ?? string.Empty
                     : string.Empty;
 
-                dependencies.Add(new DependencyRef(dependency.Name, range));
+                dependencies.Add(new DependencyRef(dependency.Name, UrlCredentials.Mask(range)));
             }
         }
 
@@ -250,6 +250,6 @@ public static class NuGetAssetsParser
 
         string? requested = null;
         bool isDirect = direct is not null && direct.TryGetValue(id, out requested);
-        return new ResolvedPackage(id, packageVersion, isDirect, dependencies, requested);
+        return new ResolvedPackage(id, UrlCredentials.Mask(packageVersion), isDirect, dependencies, requested);
     }
 }

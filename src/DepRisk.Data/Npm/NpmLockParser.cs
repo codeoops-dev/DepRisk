@@ -465,7 +465,7 @@ public static class NpmLockParser
         string? requested = owners.Requested(scope, keyName);
         bool isDirect = requested is not null;
 
-        return new ResolvedPackage(id, version, isDirect, ReadDependencies(entry, key, displayPath), requested, key);
+        return new ResolvedPackage(id, UrlCredentials.Mask(version), isDirect, ReadDependencies(entry, key, displayPath), requested, key);
     }
 
     /// <summary>
@@ -543,7 +543,8 @@ public static class NpmLockParser
                     $"{displayPath}: '{SafeText.Clean(key.Length == 0 ? "(project)" : key, 100)}' has an invalid version constraint for '{SafeText.Clean(property.Name, 100)}'.");
             }
 
-            yield return (property.Name, range);
+            // A range can be a URL, and a URL can carry credentials: they never reach a result (ADR 0027).
+            yield return (property.Name, UrlCredentials.Mask(range));
         }
     }
 

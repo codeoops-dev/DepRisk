@@ -246,10 +246,10 @@ public static class NuGetLockParser
             && requestedElement.GetString() is { Length: > 0 and <= MaxRequestedLength } text
             && !text.Any(char.IsControl))
         {
-            requested = text;
+            requested = UrlCredentials.Mask(text);
         }
 
-        return new ResolvedPackage(entry.Name, resolved, isDirect, ReadDependencies(entry, displayPath), requested);
+        return new ResolvedPackage(entry.Name, UrlCredentials.Mask(resolved), isDirect, ReadDependencies(entry, displayPath), requested);
     }
 
     private static List<DependencyRef> ReadDependencies(JsonProperty entry, string displayPath)
@@ -285,7 +285,7 @@ public static class NuGetLockParser
                     $"{displayPath}: '{SafeText.Clean(entry.Name, 100)}' has an invalid version range for '{SafeText.Clean(dependency.Name, 100)}'.");
             }
 
-            dependencies.Add(new DependencyRef(dependency.Name, range));
+            dependencies.Add(new DependencyRef(dependency.Name, UrlCredentials.Mask(range)));
         }
 
         return dependencies.OrderBy(d => d.Id, StringComparer.OrdinalIgnoreCase).ToList();

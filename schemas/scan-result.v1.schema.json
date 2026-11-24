@@ -138,14 +138,14 @@
                 "minLength": 1
               },
               "range": {
-                "description": "Version range the package declares for this dependency, in the ecosystem's notation (NuGet interval notation; npm node-semver range or specifier, as written).",
+                "description": "Version range the package declares for this dependency, in the ecosystem's notation (NuGet interval notation; npm node-semver range or specifier, as written; the user information of a URL is replaced by ***).",
                 "type": "string"
               }
             }
           }
         },
         "requested": {
-          "description": "The constraint the project itself asked for, as written in the assets or lock file (for example '>= 1.2.0' for NuGet or '^4.17.0' for npm); null for transitive packages or when none was recorded.",
+          "description": "The constraint the project itself asked for, as written in the assets or lock file (for example '>= 1.2.0' for NuGet or '^4.17.0' for npm; the user information of a URL is replaced by ***); null for transitive packages or when none was recorded.",
           "type": [
             "string",
             "null"
