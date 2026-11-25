@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/codeoops-dev/deprisk/schemas/doctor.v1.schema.json",
+  "title": "DepRisk doctor report (v1)",
+  "description": "Output of 'deprisk doctor --format json': facts about this installation (version, runtime, platform, the reachability analyzer, the audit store and its signing key, configuration). Unlike the analysis outputs it is NOT deterministic across machines: the details contain paths and the platform of the machine it ran on. The details never contain a passphrase. The exit code is 0 whatever the warnings.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "tool", "checks", "warnings"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "checks": {
+      "description": "One entry per check, in the order of the table. Check names: version, runtime, platform, deprisk-reach, deprisk-kernel, audit, audit-key (only in an initialized project), config.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "detail"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "status": {
+            "description": "ok: as expected. info: not present, and that is fine. warn: something that would stop or weaken a command.",
+            "enum": ["ok", "info", "warn"]
+          },
+          "detail": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "warnings": {
+      "description": "The number of checks with the status warn.",
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

@@ -9,7 +9,7 @@ The audit log answers: *who ran what, where, when, on which inputs, with which r
 
 ```text
 .deprisk/
-├── audit.key      private signing key (PKCS#8 PEM). Secret. Owner-only permissions where supported.
+├── audit.key      private signing key (PKCS#8 PEM, optionally encrypted with a passphrase). Secret. Owner-only permissions where supported. May live elsewhere (see below).
 ├── audit.pub      public key (SubjectPublicKeyInfo PEM). Safe to share.
 ├── audit.log      the log: one entry per line (JSON Lines), UTF-8, LF line endings
 └── .gitignore     contains "audit.key" so the private key is never committed
@@ -74,6 +74,15 @@ For each line, in order, a verifier checks:
 6. the signature verifies with the public key
 
 Any failure reports the line number and reason, and the command exits with code **3**.
+
+The log is read once, in blocks, and one line is held at a time: memory does not grow with the log (ADR 0030). It is read as it was when the pass began; no lock is taken, so a command that appends an entry never waits for a verification.
+
+## Protecting the key
+
+- **Encrypt it.** `deprisk init --encrypt` writes the private key as an encrypted PKCS#8 PEM (PBES2: PBKDF2-HMAC-SHA256, 600,000 iterations, AES-256-CBC). The passphrase is given in the environment variable `DEPRISK_KEY_PASSPHRASE`, or in a file (one line) named by `DEPRISK_KEY_PASSPHRASE_FILE`; never on the command line. Every command of the project that signs needs it; without it, or with a wrong one, the command stops with exit code 3. A new key needs at least 12 characters. The cost is the key derivation, about a third of a second per command.
+- **Keep it elsewhere.** `deprisk init --key-file <file>` writes the key to that file; commands find it through `DEPRISK_KEY_FILE`. The key must be the one `audit.pub` belongs to, or the command stops before writing.
+- **Encrypt an existing key** with OpenSSL (it reads keys that DepRisk encrypts, and DepRisk reads the ones it encrypts): `openssl pkcs8 -topk8 -in .deprisk/audit.key -v2 aes-256-cbc -v2prf hmacWithSHA256 -out audit.key.enc`, then replace `audit.key` with the result (after checking that `deprisk doctor` is happy with it).
+- `deprisk doctor` shows where the key is, whether it is encrypted and where its passphrase comes from, and warns when commands would stop (missing key, wrong passphrase, a key that is not the store's) or when an unprotected key can be read by other users.
 
 ## What the log proves, and what it does not
 

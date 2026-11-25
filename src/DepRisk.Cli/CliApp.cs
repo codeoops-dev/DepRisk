@@ -65,7 +65,7 @@ internal static class CliApp
                 return ExitCode.Success;
 
             case "doctor":
-                return DoctorCommand.Run(output, context);
+                return DoctorCommand.Run(args[1..], output, context);
 
             case "init":
                 return InitCommand.Run(args[1..], output, context);
@@ -117,7 +117,7 @@ internal static class CliApp
         output.WriteLine($"  {ProductInfo.CommandName} <command> [options]");
         output.WriteLine();
         output.WriteLine("Commands:");
-        output.WriteLine("  init [path]   Start a signed audit log in this project (creates .deprisk/)");
+        output.WriteLine("  init [path]   Start a signed audit log in this project (creates .deprisk/); --key-file <file>, --encrypt");
         output.WriteLine("  scan [path]   Read the restored dependency graph: NuGet (project.assets.json, packages.lock.json), npm (package-lock.json) or a CycloneDX/SPDX SBOM");
         output.WriteLine("                  --ecosystem auto|nuget|npm   what to read (default: auto, from the files found)");
         output.WriteLine("                  --format table|json   output format (default: table)");
@@ -153,7 +153,7 @@ internal static class CliApp
         output.WriteLine("                  --timeout <seconds>  --strict  --format table|json  --out <file>");
         output.WriteLine("  bench calibrate --cases <manifest.json> --out <risk-params.json>  Fit the Reach factor on the dev split (--prior uniform|current, --min-count <n>, --risk-params <file>)");
         output.WriteLine("  audit verify  Verify the audit log (--pubkey <file>, --head <hash>)");
-        output.WriteLine("  doctor        Check that this installation is healthy");
+        output.WriteLine("  doctor        Check that this installation is healthy (--format table|json)");
         output.WriteLine("  version       Print the version");
         output.WriteLine("  help          Show this help");
         output.WriteLine();

@@ -163,7 +163,9 @@ internal static class VexCommand
 
             try
             {
-                signer = AuditSigner.LoadPrivate(Path.GetFullPath(keyFile!, context.WorkingDirectory));
+                signer = AuditSigner.LoadPrivate(
+                    Path.GetFullPath(keyFile!, context.WorkingDirectory),
+                    () => KeyPassphrase.Read(context.GetEnvironmentVariable, context.WorkingDirectory));
             }
             catch (AuditException ex)
             {

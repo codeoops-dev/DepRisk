@@ -16,7 +16,7 @@ internal static class AuditRecorder
         }
 
         // From here on the project asked for an audit trail, so a failure must stop the command (exit code 3).
-        using AuditSigner signer = store.LoadSigner();
+        using AuditSigner signer = store.LoadSigner(context.GetEnvironmentVariable, context.WorkingDirectory);
 
         AuditEnvironment environment = new(
             context.Clock(),

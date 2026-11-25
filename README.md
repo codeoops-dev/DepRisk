@@ -191,7 +191,7 @@ Commands marked *(planned)* do not exist yet; the table in [Feature status](#fea
 
 | Command | Purpose |
 |---|---|
-| `deprisk init [path]` | Create `.deprisk/` with a signing key and start the signed audit log. Never overwrites anything. |
+| `deprisk init [path]` | Create `.deprisk/` with a signing key and start the signed audit log. Never overwrites anything. `--encrypt` encrypts the key with the passphrase in `DEPRISK_KEY_PASSPHRASE` (or in the file named by `DEPRISK_KEY_PASSPHRASE_FILE`); never given on the command line. `--key-file <file>` writes the key there instead; commands find it through `DEPRISK_KEY_FILE`. |
 | `deprisk scan [path]` | Read the resolved dependency graph: NuGet (`project.assets.json`, written by `dotnet restore`, or `packages.lock.json`; a project's assets file wins over its lock file) or npm (`package-lock.json`, lockfileVersion 1, 2 and 3; version 1 needs the `package.json` beside it), or a CycloneDX (1.2 to 1.7) or SPDX (2.2, 2.3) JSON SBOM when its path is given (`bom.json`, `sbom.json`, `*.cdx.json`, `*.spdx.json`, or any name with `--ecosystem`; a directory scan never picks one up). An SBOM must record the project and its dependency relationships, and has no version ranges or install paths (so `graph` refuses it). `--ecosystem auto\|nuget\|npm` (default: detect; a tree or an SBOM with both is an error that asks you to choose), `--format table\|json`, `--out`. Offline and deterministic. |
 | `deprisk match [path]` | Match the resolved dependencies against local OSV advisories: `--advisories <dir\|.zip\|.json>` (required), `--ecosystem`, `--format table\|json`, `--out`, `--strict`. Offline; matching is by version only. |
 | `deprisk rank [path]` | Like `match`, ordered by the baseline method: CISA KEV, then EPSS, then CVSS base score (v3.x or v4.0). `--advisories <...>` (required), `--epss <csv[.gz]>`, `--kev <json>`, `--ecosystem`, `--format table\|json\|sarif`, `--out`, `--strict`; optionally `--symbols <file\|dir>` (with `--source`, `--analyzer`, `--entrypoints`, `--entrypoint`, `--timeout`) adds a reachability verdict to each finding without changing the order. Offline; the reference (B2) for the later model. |
@@ -211,7 +211,7 @@ Commands marked *(planned)* do not exist yet; the table in [Feature status](#fea
 | `deprisk bench --cases <manifest.json>` | Compare the baselines (B1 CVSS only, B2 KEV/EPSS/CVSS, B3 reachable-only in a naive and a conservative form) with the risk model on labeled cases, with a held-out split (`--split dev\|test\|all`), a leakage guard on the EPSS and KEV dates, case-level bootstrap intervals, reachability precision/recall and unsound-`unreachable` counts, and calibration (Brier, log loss, reliability). Offline and deterministic; `--samples`, `--seed`, `--rank-by`, `--risk-params`, `--bootstrap`, `--analyzer`, `--strict`, `--format table\|json`, `--out`. Format and reading guide: [docs/benchmarks.md](docs/benchmarks.md) (ADR 0017). |
 | `deprisk bench calibrate --cases <manifest.json> --out <risk-params.json>` | Fit the Reach factor of the risk model on the `dev` split (a Beta posterior per reachability label; `--prior uniform\|current`, `--min-count`, `--risk-params`) and write a complete parameters file with a provenance note. Judge it on the `test` split with `deprisk bench --split test --risk-params <file>`. Exploit and Impact are not fitted. ADR 0018. |
 | `deprisk ci [path]` | One-shot CI mode: like `rank`, plus a policy gate. `--fail-on <expression>` (see below) makes it exit with code 1 when a finding matches; `--format table\|json\|sarif`, `--out`; optionally `--symbols <file\|dir>` with `--source`, `--analyzer`, `--entrypoints`, `--entrypoint`, `--timeout` (as for `reach`) to add reachability and use it in the gate. The verdict is printed on standard error so json and sarif on standard output stay clean. |
-| `deprisk doctor` | Diagnose the installation. |
+| `deprisk doctor` | Diagnose the installation, including the audit signing key (`--format table\|json`). |
 | `deprisk version` | Print the version. |
 | `deprisk help` | Show the command list and options (`deprisk --help` does the same). |
 
@@ -437,7 +437,7 @@ Entries form a hash chain, and the format is specified precisely in [`docs/audit
 deprisk audit verify --pubkey auditor.pub
 ```
 
-Editing, deleting, inserting, or reordering entries is detected. A log alone cannot show that entries were cut off its **end**, so pin the head: store the `head:` hash that `audit verify` prints somewhere you trust (a ticket, a signed release, another machine) and check it later with `deprisk audit verify --head <hash>`. Keys are generated locally by `init`; the private key stays in `.deprisk/audit.key` (owner-only permissions where the OS supports it, excluded from Git by `.deprisk/.gitignore`). Merkle checkpoints and a transparency-log style workflow are on the roadmap.
+Editing, deleting, inserting, or reordering entries is detected. A log alone cannot show that entries were cut off its **end**, so pin the head: store the `head:` hash that `audit verify` prints somewhere you trust (a ticket, a signed release, another machine) and check it later with `deprisk audit verify --head <hash>`. Keys are generated locally by `init`; the private key stays in `.deprisk/audit.key` (owner-only permissions where the OS supports it, excluded from Git by `.deprisk/.gitignore`). To protect it further, `deprisk init --encrypt` encrypts it with a passphrase (`DEPRISK_KEY_PASSPHRASE`, or a file named by `DEPRISK_KEY_PASSPHRASE_FILE`; in CI, a masked secret), and `--key-file` keeps it outside the project (set `DEPRISK_KEY_FILE` to find it later). An existing key is encrypted with OpenSSL (`docs/audit-log.md`). `audit verify` reads the log in blocks, so a large log needs no more memory than a small one. Merkle checkpoints and a transparency-log style workflow are on the roadmap.
 
 ## Air-gapped operation
 
@@ -657,7 +657,7 @@ Legend: ✅ implemented (built, tested, behaves as documented) · 🧪 experimen
 | Config | `deprisk.toml` (a strict TOML subset read by DepRisk itself) | 🗺️ |
 | Store | Local store under `.deprisk/`, a gate on new findings only, a data freshness policy | 🗺️ |
 | Audit | Hash-chained signed log, `init`, `audit verify` (head pinning included) | ✅ |
-| Audit | Passphrase-protected audit key; streaming verification of large logs | 🗺️ |
+| Audit | Passphrase-protected audit key (`init --encrypt`, environment variable or file, interoperable with OpenSSL); streaming verification of large logs | ✅ |
 | Audit | Merkle checkpoints and external anchoring | 🗺️ |
 | Offline | Signed bundles | 🗺️ |
 | Output | SARIF 2.1.0 and JSON for ranked findings (`rank`, `ci`) | ✅ |
@@ -669,7 +669,7 @@ Legend: ✅ implemented (built, tested, behaves as documented) · 🧪 experimen
 | CI | Risk quantiles as gate terms (only with calibrated parameters) | 🗺️ |
 | CI | GitHub Action wrapper | 🗺️ |
 | Distribution | Run-time checksum of the bundled analyzer, analyzers for linux-musl-x64 and win-arm64, a pinned Rust toolchain | 🗺️ |
-| CLI | `doctor --format json`, a different key location for `init` | 🗺️ |
+| CLI | `doctor --format json`, a different key location for `init` (`--key-file`, `DEPRISK_KEY_FILE`) | ✅ |
 
 *(Update this table as features land; it is the source of truth for what works today. ✅ means the feature does what its documentation says; it does not mean the numbers it produces have been validated. Where they have not been, the row is 🧪, and no accuracy figure appears anywhere in this README until a benchmark on real data has produced one. Shipped in `0.1.0-alpha.1`: the rows that were ✅ then; `0.2.0-alpha.1` adds the reachability, uncertainty, `explain`, `vex`, `symbols` and `bench` rows.)*
 

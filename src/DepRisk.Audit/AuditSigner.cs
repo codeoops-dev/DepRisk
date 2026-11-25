@@ -5,12 +5,17 @@ namespace DepRisk.Audit;
 
 /// <summary>
 /// ECDSA over NIST P-256 with SHA-256 (see ADR 0005). Signatures are the raw 64-byte r||s form (IEEE P1363),
-/// stored as standard Base64 (88 characters). Keys are stored as PEM (PKCS#8 private, SPKI public).
+/// stored as standard Base64 (88 characters). Keys are stored as PEM (PKCS#8 private, SPKI public). A private key can be encrypted
+/// with a passphrase (PKCS#8 <c>ENCRYPTED PRIVATE KEY</c>, PBES2 with PBKDF2-HMAC-SHA256 and AES-256-CBC), see ADR 0030.
 /// </summary>
 public sealed class AuditSigner : IDisposable
 {
     private const string P256Oid = "1.2.840.10045.3.1.7";
     private const int SignatureBytes = 64;
+    private const string EncryptedPemHeader = "-----BEGIN ENCRYPTED PRIVATE KEY-----";
+
+    // 600,000 iterations of PBKDF2-HMAC-SHA256: the OWASP recommendation. It costs a few tenths of a second each time the key is loaded.
+    private static readonly PbeParameters EncryptionParameters = new(PbeEncryptionAlgorithm.Aes256Cbc, HashAlgorithmName.SHA256, iterationCount: 600_000);
 
     private readonly ECDsa _key;
     private readonly bool _hasPrivateKey;
@@ -23,9 +28,24 @@ public sealed class AuditSigner : IDisposable
 
     public static AuditSigner Generate() => new(ECDsa.Create(ECCurve.NamedCurves.nistP256), hasPrivateKey: true);
 
-    public static AuditSigner LoadPrivate(string path) => Load(path, privateKey: true);
+    /// <param name="passphrase">
+    /// Called only when the key file is encrypted; returns the passphrase or null. A key file that is not encrypted never asks for
+    /// one, so a passphrase that is set (or wrongly set) does not matter to it.
+    /// </param>
+    public static AuditSigner LoadPrivate(string path, Func<string?>? passphrase = null) => Load(path, privateKey: true, passphrase);
 
-    public static AuditSigner LoadPublic(string path) => Load(path, privateKey: false);
+    public static AuditSigner LoadPublic(string path) => Load(path, privateKey: false, passphrase: null);
+
+    /// <summary>True when the PEM text of a private key is encrypted.</summary>
+    public static bool IsEncryptedKey(string pem) => pem.Contains(EncryptedPemHeader, StringComparison.Ordinal);
+
+    /// <summary>The private key as an encrypted PKCS#8 PEM. The passphrase is never part of the output.</summary>
+    public string ExportEncryptedPrivatePem(string passphrase)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(passphrase);
+        RequirePrivateKey();
+        return _key.ExportEncryptedPkcs8PrivateKeyPem(passphrase, EncryptionParameters) + "\n";
+    }
 
     public string ExportPrivatePem()
     {
@@ -100,7 +120,7 @@ public sealed class AuditSigner : IDisposable
 
     public void Dispose() => _key.Dispose();
 
-    private static AuditSigner Load(string path, bool privateKey)
+    private static AuditSigner Load(string path, bool privateKey, Func<string?>? passphrase)
     {
         string text;
 
@@ -117,7 +137,14 @@ public sealed class AuditSigner : IDisposable
 
         try
         {
-            key.ImportFromPem(text);
+            if (privateKey && IsEncryptedKey(text))
+            {
+                ImportEncrypted(key, text, path, passphrase);
+            }
+            else
+            {
+                key.ImportFromPem(text);
+            }
 
             string? curve = key.ExportParameters(includePrivateParameters: false).Curve.Oid.Value;
 
@@ -143,6 +170,27 @@ public sealed class AuditSigner : IDisposable
         {
             key.Dispose();
             throw;
+        }
+    }
+
+    private static void ImportEncrypted(ECDsa key, string text, string path, Func<string?>? passphrase)
+    {
+        string? secret = passphrase?.Invoke();
+
+        if (string.IsNullOrEmpty(secret))
+        {
+            throw new AuditException(
+                $"the key file '{path}' is encrypted. Give its passphrase in {KeyPassphrase.EnvironmentVariable} or in the file named by {KeyPassphrase.FileEnvironmentVariable}.");
+        }
+
+        try
+        {
+            key.ImportFromEncryptedPem(text, secret);
+        }
+        catch (CryptographicException ex)
+        {
+            // Nothing from the exception is repeated: it can describe the data being decrypted.
+            throw new AuditException($"cannot decrypt the key file '{path}': the passphrase is wrong or the file is damaged.", ex);
         }
     }
 

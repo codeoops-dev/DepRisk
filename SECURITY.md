@@ -69,7 +69,7 @@ Good-faith security research that follows this policy will not be pursued by the
 
 - Verify release checksums and signatures before installing.
 - Import only data bundles whose signatures you have verified against a key you trust.
-- Keep your audit key private; export checkpoints to write-once storage if you need stronger tamper evidence.
+- Keep your audit key private, and encrypt it (`deprisk init --encrypt`, or OpenSSL for an existing key; see `docs/audit-log.md`); export checkpoints to write-once storage if you need stronger tamper evidence.
 - Run `apply --validate` only with a sandbox you control.
 
 See also: [docs/threat-model.md](docs/threat-model.md).

@@ -7,7 +7,7 @@ public static class ArgRedactor
 
     private static readonly HashSet<string> ExactNames = new(StringComparer.Ordinal)
     {
-        "key", "apikey", "api-key", "token", "secret", "password", "passwd", "private-key", "privatekey",
+        "key", "key-file", "apikey", "api-key", "token", "secret", "password", "passwd", "private-key", "privatekey",
     };
 
     private static readonly string[] SuffixNames = ["-token", "-secret", "-password", "-passwd"];

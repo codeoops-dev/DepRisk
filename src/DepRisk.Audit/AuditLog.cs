@@ -12,7 +12,7 @@ namespace DepRisk.Audit;
 public sealed class AuditLog
 {
     private const int MaxLineBytes = 1024 * 1024;
-    private const long MaxLogBytes = 512L * 1024 * 1024;
+    private const int BlockBytes = 64 * 1024;
 
     private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
@@ -62,6 +62,9 @@ public sealed class AuditLog
     /// Checks every entry: strict format, canonical form, sequence, hash chain, and signature.
     /// If <paramref name="expectedHead"/> is given, the hash of the last entry must equal it; this is the only way to
     /// notice that entries were cut off the end, which a chain alone cannot show.
+    /// The log is read once, in blocks, and only the line being checked is held: the memory used does not grow with the log. It is read
+    /// as it was when verification began (nothing appended later is looked at), and no lock is taken, so a command that appends an entry
+    /// is never made to wait for a long verification.
     /// </summary>
     public static AuditVerification Verify(string logPath, AuditSigner verifier, string? expectedHead = null)
     {
@@ -73,49 +76,112 @@ public sealed class AuditLog
             return AuditVerification.Failure(0, $"audit log not found: {logPath}", 0, Digest.ZeroHash);
         }
 
-        if (new FileInfo(logPath).Length > MaxLogBytes)
+        FileStream stream;
+
+        try
         {
-            return AuditVerification.Failure(0, "audit log is too large to verify in memory", 0, Digest.ZeroHash);
+            stream = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, BlockBytes, FileOptions.SequentialScan);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return AuditVerification.Failure(0, $"cannot read the audit log '{logPath}' ({ex.Message})", 0, Digest.ZeroHash);
         }
 
-        byte[] data = File.ReadAllBytes(logPath);
-        string head = Digest.ZeroHash;
-        int entries = 0;
-
-        if (data.Length > 0 && data[^1] != (byte)'\n')
+        using (stream)
         {
-            return AuditVerification.Failure(
-                CountLines(data) + 1, "the last entry is incomplete (no line ending): the log was cut off or a write was interrupted", entries, head);
-        }
+            long length = stream.Length;
+            string head = Digest.ZeroHash;
+            int entries = 0;
 
-        int start = 0;
-        int lineNumber = 0;
-
-        while (start < data.Length)
-        {
-            int end = Array.IndexOf(data, (byte)'\n', start);
-            ReadOnlySpan<byte> lineBytes = data.AsSpan(start, end - start);
-            lineNumber++;
-
-            string? failure = CheckLine(lineBytes, entries + 1, head, verifier);
-
-            if (failure is not null)
+            if (length > 0)
             {
-                return AuditVerification.Failure(lineNumber, failure, entries, head);
+                stream.Seek(length - 1, SeekOrigin.Begin);
+
+                if (stream.ReadByte() != '\n')
+                {
+                    return AuditVerification.Failure(
+                        CountLines(stream, length) + 1,
+                        "the last entry is incomplete (no line ending): the log was cut off or a write was interrupted",
+                        entries,
+                        head);
+                }
+
+                stream.Seek(0, SeekOrigin.Begin);
             }
 
-            head = Digest.Sha256Hex(lineBytes);
-            entries++;
-            start = end + 1;
-        }
+            byte[] block = new byte[BlockBytes];
+            byte[] line = new byte[4096];
+            int lineLength = 0;
+            bool lineTooLarge = false;
+            int lineNumber = 0;
+            long remaining = length;
 
-        if (expectedHead is not null && !string.Equals(expectedHead, head, StringComparison.Ordinal))
-        {
-            return AuditVerification.Failure(
-                0, $"the head of the log ({head}) differs from the expected head: entries were removed or the log was replaced", entries, head);
-        }
+            while (remaining > 0)
+            {
+                int read = stream.Read(block, 0, (int)Math.Min(block.Length, remaining));
 
-        return new AuditVerification(true, entries, head, null, 0);
+                if (read <= 0)
+                {
+                    return AuditVerification.Failure(lineNumber + 1, "the log was shortened while it was read", entries, head);
+                }
+
+                remaining -= read;
+                int offset = 0;
+
+                while (offset < read)
+                {
+                    int newline = Array.IndexOf(block, (byte)'\n', offset, read - offset);
+                    int segmentLength = (newline < 0 ? read : newline) - offset;
+
+                    // Only a line that can still be a valid entry is kept; a longer one is counted as too large and skipped.
+                    if (!lineTooLarge)
+                    {
+                        if (lineLength + segmentLength > MaxLineBytes)
+                        {
+                            lineTooLarge = true;
+                        }
+                        else
+                        {
+                            if (lineLength + segmentLength > line.Length)
+                            {
+                                Array.Resize(ref line, Math.Min(MaxLineBytes, Math.Max(line.Length * 2, lineLength + segmentLength)));
+                            }
+
+                            Buffer.BlockCopy(block, offset, line, lineLength, segmentLength);
+                            lineLength += segmentLength;
+                        }
+                    }
+
+                    if (newline < 0)
+                    {
+                        break;
+                    }
+
+                    lineNumber++;
+                    ReadOnlySpan<byte> lineBytes = line.AsSpan(0, lineLength);
+                    string? failure = lineTooLarge ? "entry is too large" : CheckLine(lineBytes, entries + 1, head, verifier);
+
+                    if (failure is not null)
+                    {
+                        return AuditVerification.Failure(lineNumber, failure, entries, head);
+                    }
+
+                    head = Digest.Sha256Hex(lineBytes);
+                    entries++;
+                    lineLength = 0;
+                    lineTooLarge = false;
+                    offset = newline + 1;
+                }
+            }
+
+            if (expectedHead is not null && !string.Equals(expectedHead, head, StringComparison.Ordinal))
+            {
+                return AuditVerification.Failure(
+                    0, $"the head of the log ({head}) differs from the expected head: entries were removed or the log was replaced", entries, head);
+            }
+
+            return new AuditVerification(true, entries, head, null, 0);
+        }
     }
 
     private static string? CheckLine(ReadOnlySpan<byte> lineBytes, int expectedSeq, string expectedPrevHash, AuditSigner verifier)
@@ -164,7 +230,29 @@ public sealed class AuditLog
         return null;
     }
 
-    private static int CountLines(byte[] data) => data.Count(b => b == (byte)'\n');
+    /// <summary>The number of line endings in the first <paramref name="length"/> bytes; only used to say where an incomplete log ends.</summary>
+    private static int CountLines(FileStream stream, long length)
+    {
+        stream.Seek(0, SeekOrigin.Begin);
+        byte[] block = new byte[BlockBytes];
+        int count = 0;
+        long remaining = length;
+
+        while (remaining > 0)
+        {
+            int read = stream.Read(block, 0, (int)Math.Min(block.Length, remaining));
+
+            if (read <= 0)
+            {
+                break;
+            }
+
+            remaining -= read;
+            count += block.AsSpan(0, read).Count((byte)'\n');
+        }
+
+        return count;
+    }
 
     private static FileStream OpenExclusive(string path)
     {
