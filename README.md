@@ -175,7 +175,7 @@ docker run --rm -v "$PWD":/work -w /work ghcr.io/codeoops-dev/deprisk:latest sca
 
 ### Option D: from source
 
-Requirements today: the .NET 10 SDK. The Rust toolchain is needed only to build the reachability analyzer from source (`analyzers/reach`), for example on a platform the package does not bundle it for; GNAT/GNATprove will be needed once the SPARK kernel lands.
+Requirements today: the .NET 10 SDK. The Rust toolchain is needed only to build the reachability analyzer from source (`analyzers/reach`), for example on a platform the package does not bundle it for (use [rustup](https://rustup.rs): the release is pinned in `analyzers/reach/rust-toolchain.toml`, and `rustup toolchain install` in that directory installs it); GNAT/GNATprove will be needed once the SPARK kernel lands.
 
 ```bash
 git clone https://github.com/codeoops-dev/deprisk.git
@@ -668,7 +668,8 @@ Legend: ✅ implemented (built, tested, behaves as documented) · 🧪 experimen
 | CI | Reachability terms in the policy gate (`reachable`, `possibly-reachable`, `reach-unknown`, `unreachable`, `not-unreachable`) | ✅ |
 | CI | Risk quantiles as gate terms (only with calibrated parameters) | 🗺️ |
 | CI | GitHub Action wrapper | 🗺️ |
-| Distribution | Run-time checksum of the bundled analyzer, analyzers for linux-musl-x64 and win-arm64, a pinned Rust toolchain | 🗺️ |
+| Distribution | A pinned Rust toolchain for every build of the analyzer (`analyzers/reach/rust-toolchain.toml`, installed by every workflow, ADR 0031) | ✅ |
+| Distribution | Run-time checksum of the bundled analyzer, analyzers for linux-musl-x64 and win-arm64 | 🗺️ |
 | CLI | `doctor --format json`, a different key location for `init` (`--key-file`, `DEPRISK_KEY_FILE`) | ✅ |
 
 *(Update this table as features land; it is the source of truth for what works today. ✅ means the feature does what its documentation says; it does not mean the numbers it produces have been validated. Where they have not been, the row is 🧪, and no accuracy figure appears anywhere in this README until a benchmark on real data has produced one. Shipped in `0.1.0-alpha.1`: the rows that were ✅ then; `0.2.0-alpha.1` adds the reachability, uncertainty, `explain`, `vex`, `symbols` and `bench` rows.)*

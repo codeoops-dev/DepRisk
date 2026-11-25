@@ -13,7 +13,7 @@ public sealed partial class DocsConsistencyTests
 {
     private static readonly string[] Statuses = ["✅", "🧪", "🚧", "🗺️"];
 
-    private static string Root()
+    internal static string Root()
     {
         string? fromEnvironment = Environment.GetEnvironmentVariable("DEPRISK_REPO_ROOT");
 

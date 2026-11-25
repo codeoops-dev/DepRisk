@@ -1,0 +1,6 @@
+# The Rust release every build of the reachability analyzer uses: developers (rustup picks this file up in this directory) and every
+# workflow (they run `rustup toolchain install`, which reads it). One place, one line to change. ADR 0031.
+[toolchain]
+channel = "1.89.0"
+profile = "minimal"
+components = ["clippy", "rustfmt"]

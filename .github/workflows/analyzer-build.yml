@@ -29,8 +29,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rust toolchain
-        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: Rust toolchain (pinned by analyzers/reach/rust-toolchain.toml)
+        working-directory: analyzers/reach
+        run: |
+          rustup toolchain install
+          rustup show active-toolchain
 
       - name: Build (locked dependencies, release profile)
         working-directory: analyzers/reach

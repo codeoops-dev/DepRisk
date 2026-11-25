@@ -32,4 +32,4 @@ For JavaScript and TypeScript add `"language": "javascript"` and use package sym
 
 Each target gets `reachable` (with a path of static edges), `possibly-reachable`, `unreachable`, or `unknown` with the reason. `unreachable` is only ever said when nothing could hide a path; read the ADR before relying on it.
 
-Develop: `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings`, `cargo test --locked` (needs Rust 1.89 or newer).
+Develop: `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings`, `cargo test --locked` (the Rust release is pinned in `rust-toolchain.toml` next to this file: run `rustup toolchain install` here once; building with another toolchain needs 1.89 or newer).

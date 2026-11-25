@@ -28,7 +28,7 @@ The analyzer (ADR 0012, ADR 0019) is a separate Rust program, and the CLI runs i
 ## Known limits
 
 - Platforms not bundled: Alpine and other musl-based Linux, Windows on ARM, 32-bit systems, FreeBSD. On those the analyzer is built from source and passed with `--analyzer`; the message that says so names the platforms and this machine's.
-- The Rust toolchain is `stable` as of the build, not pinned, so a rebuild of the same tag later can produce different bytes. The build log records the compiler version. Pinning (`rust-toolchain.toml`) and reproducible builds are later work.
+- The Rust toolchain is pinned to one release by `analyzers/reach/rust-toolchain.toml` (ADR 0031, added after this decision). Byte-for-byte reproducible builds are not claimed and remain later work.
 - The binaries are not code-signed (no Authenticode, no Apple notarization) and the package is not author-signed with a certificate; integrity rests on the checks above, nuget.org's own package signing, and the provenance attestation. macOS arm64 binaries carry the ad-hoc signature the linker adds; a file delivered by NuGet does not carry the quarantine attribute that would trigger Gatekeeper.
 - The CLI does not verify the analyzer's checksum at run time: anyone who can write into the tool's directory can replace both. The checksum files are for the release checks and for people who want to compare.
 - The package grows by the size of five binaries, a few megabytes compressed.

@@ -21,7 +21,7 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). For sec
 
 ## Development setup
 
-Requirements: .NET SDK, Rust toolchain; GNAT with GNATprove only if you touch `kernel/`.
+Requirements: .NET SDK, [rustup](https://rustup.rs) (run `rustup toolchain install` in `analyzers/reach`: the Rust release is pinned there in `rust-toolchain.toml`, and CI uses the same file); GNAT with GNATprove only if you touch `kernel/`.
 
 ```bash
 git clone https://github.com/codeoops-dev/deprisk.git
