@@ -60,7 +60,7 @@ jobs:
           python3 build/verify-package.py "artifacts/${expected}" --version "${version}"
 
       - name: Attest the provenance of the package
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: artifacts/*.nupkg
 
