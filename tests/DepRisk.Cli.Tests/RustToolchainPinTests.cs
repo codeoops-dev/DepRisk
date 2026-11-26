@@ -87,8 +87,9 @@ public sealed partial class RustToolchainPinTests
             // The only rustup command a workflow may run to get a compiler is the one with no argument: it reads the pin.
             bool installFromFile = InstallFromFile().IsMatch(text);
             bool showActive = text.Trim() == "rustup show active-toolchain";
+            bool addTarget = AddTarget().IsMatch(text); // a target of the pinned toolchain (the static musl analyzer), not another toolchain
 
-            Assert.True(installFromFile || showActive, $"{file}:{line}: '{text.Trim()}' names a toolchain other than the pinned one (use 'rustup toolchain install', which reads analyzers/reach/rust-toolchain.toml)");
+            Assert.True(installFromFile || showActive || addTarget, $"{file}:{line}: '{text.Trim()}' names a toolchain other than the pinned one (use 'rustup toolchain install', which reads analyzers/reach/rust-toolchain.toml)");
         }
     }
 
@@ -138,6 +139,9 @@ public sealed partial class RustToolchainPinTests
 
     [GeneratedRegex(@"(^|[\s:|])rustup toolchain install\s*$")]
     private static partial Regex InstallFromFile();
+
+    [GeneratedRegex(@"^\s*rustup target add [a-z0-9_]+(-[a-z0-9_]+)+\s*$")]
+    private static partial Regex AddTarget();
 
     [GeneratedRegex(@"^  [A-Za-z0-9_-]+:\s*$")]
     private static partial Regex JobHeader();

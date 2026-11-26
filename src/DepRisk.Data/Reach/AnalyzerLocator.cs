@@ -17,25 +17,43 @@ public static class AnalyzerLocator
     public static string ExecutableName => OperatingSystem.IsWindows() ? "deprisk-reach.exe" : "deprisk-reach";
 
     /// <summary>The platforms the NuGet package bundles an analyzer for.</summary>
-    public static readonly IReadOnlyList<string> BundledPlatforms = ["linux-x64", "linux-arm64", "osx-x64", "osx-arm64", "win-x64"];
+    public static readonly IReadOnlyList<string> BundledPlatforms = ["linux-x64", "linux-musl-x64", "linux-arm64", "osx-x64", "osx-arm64", "win-x64", "win-arm64"];
 
     /// <summary>
-    /// The runtime identifier of this machine (<c>linux-x64</c>, <c>osx-arm64</c>, <c>win-x64</c>, ...), built from the operating system and
-    /// the process architecture rather than from the runtime's own identifier, which can carry a distribution name. Null for a platform
-    /// this tool does not know.
+    /// The runtime identifier of this machine (<c>linux-x64</c>, <c>linux-musl-x64</c>, <c>osx-arm64</c>, <c>win-arm64</c>, ...), built from
+    /// the operating system and the process architecture rather than from the runtime's own identifier, which can carry a distribution
+    /// name. The runtime's identifier is used for one thing only: to tell a musl-based Linux (Alpine) from a glibc-based one, because
+    /// the analyzers for the two are different files (ADR 0033). Null for a platform this tool does not know.
     /// </summary>
     public static string? CurrentPlatform() =>
         PlatformOf(
             OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsMacOS() ? "osx" : OperatingSystem.IsLinux() ? "linux" : null,
-            RuntimeInformation.ProcessArchitecture);
+            RuntimeInformation.ProcessArchitecture,
+            IsMusl(RuntimeInformation.RuntimeIdentifier));
 
-    public static string? PlatformOf(string? os, Architecture architecture) =>
-        os is null ? null : architecture switch
+    /// <summary>True for the runtime identifier of a .NET runtime built for musl (<c>linux-musl-x64</c>, <c>linux-musl-arm64</c>).</summary>
+    public static bool IsMusl(string? runtimeIdentifier) =>
+        runtimeIdentifier is not null && runtimeIdentifier.StartsWith("linux-musl-", StringComparison.Ordinal);
+
+    /// <param name="os"><c>linux</c>, <c>osx</c> or <c>win</c>.</param>
+    /// <param name="architecture">The process architecture.</param>
+    /// <param name="musl">The machine runs a musl-based Linux; ignored for any other operating system.</param>
+    public static string? PlatformOf(string? os, Architecture architecture, bool musl = false)
+    {
+        string? arch = architecture switch
         {
-            Architecture.X64 => os + "-x64",
-            Architecture.Arm64 => os + "-arm64",
+            Architecture.X64 => "x64",
+            Architecture.Arm64 => "arm64",
             _ => null,
         };
+
+        if (os is null || arch is null)
+        {
+            return null;
+        }
+
+        return musl && os == "linux" ? "linux-musl-" + arch : os + "-" + arch;
+    }
 
     /// <returns>The full path, or null if there is none. Throws if an explicit choice does not exist.</returns>
     public static string? Find(string? explicitPath, string workingDirectory, Func<string, string?> getEnvironmentVariable, string baseDirectory, string? platform = null)

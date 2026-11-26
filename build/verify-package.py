@@ -17,7 +17,7 @@ import struct
 import sys
 import zipfile
 
-PLATFORMS = ["linux-x64", "linux-arm64", "osx-x64", "osx-arm64", "win-x64"]
+PLATFORMS = ["linux-x64", "linux-musl-x64", "linux-arm64", "osx-x64", "osx-arm64", "win-x64", "win-arm64"]
 PREFIX = "tools/net10.0/any/analyzers/"
 MIN_SIZE = 500_000
 
@@ -26,9 +26,20 @@ def exe_name(platform):
     return "deprisk-reach.exe" if platform.startswith("win-") else "deprisk-reach"
 
 
+def elf_is_static(data):
+    """True if a 64-bit little-endian ELF file asks for no program interpreter (PT_INTERP), i.e. needs no dynamic loader."""
+    phoff = struct.unpack_from("<Q", data, 0x20)[0]
+    phentsize, phnum = struct.unpack_from("<HH", data, 0x36)
+    for index in range(phnum):
+        if struct.unpack_from("<I", data, phoff + index * phentsize)[0] == 3:  # PT_INTERP
+            return False
+    return True
+
+
 def architecture_problem(platform, data):
     """None if the bytes are an executable of the platform's kind and architecture, else what is wrong."""
-    kind, arch = platform.split("-")
+    parts = platform.split("-")  # linux-x64, linux-musl-x64, win-arm64
+    kind, arch = parts[0], parts[-1]
     if kind == "linux":
         if data[:4] != b"\x7fELF":
             return "not an ELF file"
@@ -36,7 +47,11 @@ def architecture_problem(platform, data):
             return "not a 64-bit little-endian ELF file"
         machine = struct.unpack_from("<H", data, 18)[0]
         want = {"x64": 0x3E, "arm64": 0xB7}[arch]
-        return None if machine == want else f"ELF machine 0x{machine:x}, expected 0x{want:x}"
+        if machine != want:
+            return f"ELF machine 0x{machine:x}, expected 0x{want:x}"
+        if "musl" in parts and not elf_is_static(data):
+            return "has a program interpreter (dynamic loader): the musl analyzer must be statically linked (ADR 0033)"
+        return None
     if kind == "osx":
         magic = data[:4]
         if magic == b"\xcf\xfa\xed\xfe":
@@ -101,7 +116,7 @@ def main(argv):
                 if recorded != digest:
                     problems.append(f"{platform}: SHA-256 {digest} does not match the recorded {recorded}")
 
-            print(f"{platform:12} {len(data):>10} bytes  sha256:{digest[:16]}...  {'FAIL' if len(problems) > before else 'ok'}")
+            print(f"{platform:15} {len(data):>10} bytes  sha256:{digest[:16]}...  {'FAIL' if len(problems) > before else 'ok'}")
 
         allowed = {f"{PREFIX}{p}/{exe_name(p)}" for p in PLATFORMS} | {f"{PREFIX}{p}/{exe_name(p)}.sha256" for p in PLATFORMS}
         extra = sorted(n for n in names if n.startswith(PREFIX) and not n.endswith("/") and n not in allowed)

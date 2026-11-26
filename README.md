@@ -645,7 +645,7 @@ Legend: ✅ implemented (built, tested, behaves as documented) · 🧪 experimen
 | Rank | CVSS v4.0 base scoring (checked against FIRST's reference calculator on all 104,976 base vectors) | ✅ |
 | Model | Dependency hypergraph of the resolved graph (NuGet; npm with Node-style path resolution and node-semver ranges), requirement checks, DOT/JSON export via `deprisk graph` | ✅ |
 | Model | Hypergraph with candidate versions and allowed tuples (for the optimizer) | 🗺️ |
-| Analysis | Reachability analyzer (`analyzers/reach`: standalone Rust process with a JSON protocol, conservative call graph, labels reachable / possibly-reachable / unreachable / unknown) for C# and for JavaScript and TypeScript (ADR 0012, ADR 0019); bundled with the NuGet package for linux-x64, linux-arm64, osx-x64, osx-arm64 and win-x64 (ADR 0022), elsewhere build it from source | 🧪 |
+| Analysis | Reachability analyzer (`analyzers/reach`: standalone Rust process with a JSON protocol, conservative call graph, labels reachable / possibly-reachable / unreachable / unknown) for C# and for JavaScript and TypeScript (ADR 0012, ADR 0019); bundled with the NuGet package for linux-x64, linux-musl-x64, linux-arm64, osx-x64, osx-arm64, win-x64 and win-arm64 (ADR 0022, ADR 0033), elsewhere build it from source | 🧪 |
 | Analysis | `deprisk reach` and the reachability labels in `rank`, `ci`, `explain` and `vex`, for NuGet and npm projects, with symbol maps ([format](docs/symbol-maps.md), ADR 0013, ADR 0020); shown, not used for the order. Symbol data for real advisories has to be written (the fixtures are synthetic) | 🧪 |
 | Analysis | Guards: an answer is never `unreachable` for a symbol list that is not declared complete (ADR 0023), and an analyzer answer whose label and reason contradict each other is refused (ADR 0026) | ✅ |
 | Analysis | `deprisk symbols template` (worklist and draft entries, refused until filled in; no symbols are proposed) and `deprisk symbols check` (do the maps still fit the project, optional `--fail-on` gate); ADR 0024, ADR 0025 | ✅ |
@@ -669,7 +669,8 @@ Legend: ✅ implemented (built, tested, behaves as documented) · 🧪 experimen
 | CI | Risk quantiles as gate terms (only with calibrated parameters) | 🗺️ |
 | CI | GitHub Action wrapper | 🗺️ |
 | Distribution | A pinned Rust toolchain for every build of the analyzer (`analyzers/reach/rust-toolchain.toml`, installed by every workflow, ADR 0031) | ✅ |
-| Distribution | Run-time checksum of the bundled analyzer, analyzers for linux-musl-x64 and win-arm64 | 🗺️ |
+| Distribution | Analyzers for linux-musl-x64 (static, started in an Alpine container in CI) and win-arm64 (ADR 0033) | ✅ |
+| Distribution | Run-time checksum of the bundled analyzer | 🗺️ |
 | CLI | `doctor --format json`, a different key location for `init` (`--key-file`, `DEPRISK_KEY_FILE`) | ✅ |
 
 *(Update this table as features land; it is the source of truth for what works today. ✅ means the feature does what its documentation says; it does not mean the numbers it produces have been validated. Where they have not been, the row is 🧪, and no accuracy figure appears anywhere in this README until a benchmark on real data has produced one. Shipped in `0.1.0-alpha.1`: the rows that were ✅ then; `0.2.0-alpha.1` adds the reachability, uncertainty, `explain`, `vex`, `symbols` and `bench` rows.)*
@@ -677,7 +678,7 @@ Legend: ✅ implemented (built, tested, behaves as documented) · 🧪 experimen
 ## Roadmap
 
 - **v0.1** CLI skeleton, NuGet + npm ingest, hypergraph, advisory matching, risk ranking (CVSS+EPSS+KEV baseline), audit log, `ci` policy gate, SARIF. First pre-release: `0.1.0-alpha.1`.
-- **v0.2** Reachability (C#, JS/TS), uncertainty model, `explain`, OpenVEX export (signed as a DSSE attestation, ADR 0021), the benchmark harness (`deprisk bench`, ADR 0017), and the analyzer bundled with the NuGet package for five platforms (ADR 0022). First pre-release: `0.2.0-alpha.1`. Still to do: real symbol data for real advisories, a real labeled benchmark dataset, calibration of the placeholder parameters, and the engineering items listed in [docs/roadmap.md](docs/roadmap.md).
+- **v0.2** Reachability (C#, JS/TS), uncertainty model, `explain`, OpenVEX export (signed as a DSSE attestation, ADR 0021), the benchmark harness (`deprisk bench`, ADR 0017), and the analyzer bundled with the NuGet package for seven platforms (ADR 0022, ADR 0033). First pre-release: `0.2.0-alpha.1`. Still to do: real symbol data for real advisories, a real labeled benchmark dataset, calibration of the placeholder parameters, and the engineering items listed in [docs/roadmap.md](docs/roadmap.md).
 - **v0.3** Optimizer (MILP + CVaR), plan format, `plan`/`apply --dry-run`. Not started; the proposed order is in [docs/roadmap.md](docs/roadmap.md).
 - **v0.4** SPARK kernel and proofs, `verify`, first published benchmark results (the harness itself is already in the repository, see v0.2).
 - **v0.5** Signed offline bundles, GitHub Action (the `ci` command and SARIF output already ship with v0.1).

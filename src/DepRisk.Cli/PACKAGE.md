@@ -22,7 +22,7 @@ deprisk vex verify vex.intoto.json --pubkey vex.pub
 deprisk doctor
 ```
 
-The reachability analyzer is bundled with this package for linux-x64, linux-arm64, osx-x64, osx-arm64, and win-x64; on another platform build it from source (`cargo build --release --locked` in `analyzers/reach`) and pass `--analyzer <path>`. `deprisk doctor` shows which one is used.
+The reachability analyzer is bundled with this package for linux-x64, linux-musl-x64 (Alpine), linux-arm64, osx-x64, osx-arm64, win-x64, and win-arm64; on another platform build it from source (`cargo build --release --locked` in `analyzers/reach`) and pass `--analyzer <path>`. `deprisk doctor` shows which one is used.
 
 Nothing is downloaded by the tool. Get the data on a connected machine and pass the files in:
 OSV dumps (`https://osv-vulnerabilities.storage.googleapis.com/NuGet/all.zip` or `.../npm/all.zip`), the EPSS scores CSV, and the CISA KEV JSON.

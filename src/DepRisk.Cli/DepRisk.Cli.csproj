@@ -29,7 +29,7 @@
     next to the tool, where AnalyzerLocator looks for them; by default (a plain build or pack) nothing is bundled.
   -->
   <PropertyGroup>
-    <BundledAnalyzerPlatforms>linux-x64;linux-arm64;osx-x64;osx-arm64;win-x64</BundledAnalyzerPlatforms>
+    <BundledAnalyzerPlatforms>linux-x64;linux-musl-x64;linux-arm64;osx-x64;osx-arm64;win-x64;win-arm64</BundledAnalyzerPlatforms>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(BundleAnalyzers)' == 'true'">

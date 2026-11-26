@@ -1,7 +1,7 @@
 name: analyzer-build
 
 # Builds the reachability analyzer (analyzers/reach, Rust) on a runner of every platform the NuGet package bundles it for, so that
-# nothing is cross-compiled and every binary is smoke-tested on the platform it is for. Used by ci.yml (on every push and pull
+# (apart from the static musl one, ADR 0033) nothing is cross-compiled and every binary is smoke-tested on the platform it is for. Used by ci.yml (on every push and pull
 # request, so a platform that stops building is found before a release) and by release.yml. ADR 0022.
 
 on:
@@ -22,11 +22,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { rid: linux-x64, os: ubuntu-latest, exe: deprisk-reach }
-          - { rid: linux-arm64, os: ubuntu-24.04-arm, exe: deprisk-reach }
-          - { rid: osx-x64, os: macos-15-intel, exe: deprisk-reach }
-          - { rid: osx-arm64, os: macos-15, exe: deprisk-reach }
-          - { rid: win-x64, os: windows-latest, exe: deprisk-reach.exe }
+          - { rid: linux-x64, os: ubuntu-latest, exe: deprisk-reach, target-args: "", out: target/release }
+          - { rid: linux-musl-x64, os: ubuntu-latest, exe: deprisk-reach, target-args: "--target x86_64-unknown-linux-musl", out: target/x86_64-unknown-linux-musl/release }
+          - { rid: linux-arm64, os: ubuntu-24.04-arm, exe: deprisk-reach, target-args: "", out: target/release }
+          - { rid: osx-x64, os: macos-15-intel, exe: deprisk-reach, target-args: "", out: target/release }
+          - { rid: osx-arm64, os: macos-15, exe: deprisk-reach, target-args: "", out: target/release }
+          - { rid: win-x64, os: windows-latest, exe: deprisk-reach.exe, target-args: "", out: target/release }
+          - { rid: win-arm64, os: windows-11-arm, exe: deprisk-reach.exe, target-args: "", out: target/release }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -39,6 +41,16 @@ jobs:
         run: |
           rustup toolchain install
           rustup show active-toolchain
+
+      # The musl analyzer is linked statically (the Rust musl target does that by default) and its C code (the grammars) is compiled with musl-gcc.
+      # It is built on a glibc runner, which makes this the one cross-compiled analyzer; the checks below run it in an Alpine container (ADR 0033).
+      - name: musl target and C compiler
+        if: matrix.rid == 'linux-musl-x64'
+        working-directory: analyzers/reach
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends musl-tools
+          rustup target add x86_64-unknown-linux-musl
 
       - name: Cache dependencies and build output (never in a release)
         if: inputs.cache
@@ -57,18 +69,28 @@ jobs:
         working-directory: analyzers/reach
         run: |
           rustc --version
-          cargo build --release --locked
+          cargo build --release --locked ${{ matrix.target-args }}
 
       # The binary must start on this platform and answer a request in the protocol (an empty target list is a valid request).
       - name: Smoke test
         run: |
-          echo '{"schemaVersion":1,"language":"javascript","root":".","targets":[]}' | analyzers/reach/target/release/${{ matrix.exe }} | tee smoke.json
+          echo '{"schemaVersion":1,"language":"javascript","root":".","targets":[]}' | analyzers/reach/${{ matrix.out }}/${{ matrix.exe }} | tee smoke.json
           grep -q '"language":"javascript"' smoke.json
-          echo '{"schemaVersion":1,"root":".","targets":[]}' | analyzers/reach/target/release/${{ matrix.exe }} | grep -q '"language":"csharp"'
+          echo '{"schemaVersion":1,"root":".","targets":[]}' | analyzers/reach/${{ matrix.out }}/${{ matrix.exe }} | grep -q '"language":"csharp"'
+
+      # A static binary runs on a glibc runner too, so the smoke test above proves little for musl: this one runs it where it is for.
+      - name: musl checks (no dynamic loader; starts and answers on Alpine)
+        if: matrix.rid == 'linux-musl-x64'
+        run: |
+          bin="analyzers/reach/${{ matrix.out }}/${{ matrix.exe }}"
+          file "$bin"
+          if readelf -lW "$bin" | grep -q INTERP; then echo "the musl analyzer must be statically linked"; exit 1; fi
+          echo '{"schemaVersion":1,"language":"javascript","root":".","targets":[]}' | docker run --rm -i -v "$PWD/$(dirname "$bin"):/analyzer:ro" alpine:3.22 /analyzer/${{ matrix.exe }} | tee alpine.json
+          grep -q '"language":"javascript"' alpine.json
 
       - uses: actions/upload-artifact@v4
         with:
           name: analyzer-${{ matrix.rid }}
-          path: analyzers/reach/target/release/${{ matrix.exe }}
+          path: analyzers/reach/${{ matrix.out }}/${{ matrix.exe }}
           if-no-files-found: error
           retention-days: 14

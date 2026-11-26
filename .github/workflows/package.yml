@@ -31,7 +31,7 @@ jobs:
 
       - name: Stage the analyzers next to the tool project
         run: |
-          for rid in linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64; do
+          for rid in linux-x64 linux-musl-x64 linux-arm64 osx-x64 osx-arm64 win-x64 win-arm64; do
             exe=deprisk-reach
             if [ "${rid%%-*}" = "win" ]; then exe=deprisk-reach.exe; fi
             src="staging/analyzer-${rid}/${exe}"

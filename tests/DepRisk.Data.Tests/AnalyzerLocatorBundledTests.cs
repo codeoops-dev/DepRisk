@@ -83,10 +83,63 @@ public sealed class AnalyzerLocatorBundledTests : IDisposable
     [InlineData("osx", Architecture.X64, "osx-x64")]
     [InlineData("osx", Architecture.Arm64, "osx-arm64")]
     [InlineData("win", Architecture.X64, "win-x64")]
+    [InlineData("win", Architecture.Arm64, "win-arm64")]
     public void The_platform_name_is_the_operating_system_and_the_architecture(string os, Architecture architecture, string expected)
     {
         Assert.Equal(expected, AnalyzerLocator.PlatformOf(os, architecture));
         Assert.Contains(expected, AnalyzerLocator.BundledPlatforms);
+    }
+
+    [Theory]
+    [InlineData("linux", Architecture.X64, true, "linux-musl-x64")]
+    [InlineData("linux", Architecture.Arm64, true, "linux-musl-arm64")]
+    [InlineData("linux", Architecture.X64, false, "linux-x64")]
+    [InlineData("osx", Architecture.Arm64, true, "osx-arm64")]
+    [InlineData("win", Architecture.X64, true, "win-x64")]
+    public void A_musl_based_linux_has_its_own_platform_name_and_no_other_system_does(string os, Architecture architecture, bool musl, string expected)
+    {
+        Assert.Equal(expected, AnalyzerLocator.PlatformOf(os, architecture, musl));
+    }
+
+    [Fact]
+    public void The_musl_x64_analyzer_is_bundled_and_the_musl_arm64_one_is_not()
+    {
+        Assert.Contains("linux-musl-x64", AnalyzerLocator.BundledPlatforms);
+        Assert.DoesNotContain("linux-musl-arm64", AnalyzerLocator.BundledPlatforms);
+        Assert.Equal(7, AnalyzerLocator.BundledPlatforms.Count);
+    }
+
+    [Theory]
+    [InlineData("linux-musl-x64", true)]
+    [InlineData("linux-musl-arm64", true)]
+    [InlineData("linux-x64", false)]
+    [InlineData("linux-arm64", false)]
+    [InlineData("win-x64", false)]
+    [InlineData("osx-arm64", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void Only_the_identifier_of_a_musl_runtime_counts_as_musl(string? runtimeIdentifier, bool expected)
+    {
+        Assert.Equal(expected, AnalyzerLocator.IsMusl(runtimeIdentifier));
+    }
+
+    [Fact]
+    public void The_bundled_analyzer_of_a_musl_system_is_the_one_in_its_own_directory()
+    {
+        string glibc = Bundled("linux-x64");
+        string musl = Bundled("linux-musl-x64");
+
+        Assert.Equal(musl, AnalyzerLocator.Find(null, _root, NoEnvironment, Base, "linux-musl-x64"));
+        Assert.Equal(glibc, AnalyzerLocator.Find(null, _root, NoEnvironment, Base, "linux-x64"));
+        Assert.NotEqual(glibc, musl);
+    }
+
+    [Fact]
+    public void A_musl_arm64_machine_finds_nothing_rather_than_a_glibc_binary_that_cannot_run()
+    {
+        Bundled("linux-arm64");
+
+        Assert.Null(AnalyzerLocator.Find(null, _root, NoEnvironment, Base, "linux-musl-arm64"));
     }
 
     [Theory]
@@ -166,6 +219,8 @@ public sealed class AnalyzerLocatorBundledTests : IDisposable
 
         Assert.Contains("linux-x64", message);
         Assert.Contains("win-x64", message);
+        Assert.Contains("linux-musl-x64", message);
+        Assert.Contains("win-arm64", message);
         Assert.Contains("cargo build --release --locked", message);
         Assert.Contains("--analyzer", message);
         Assert.Contains(AnalyzerLocator.EnvironmentVariable, message);
