@@ -273,6 +273,18 @@ jobs:
           rustup toolchain install
           rustup show active-toolchain
 
+      - name: Cache dependencies and build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            analyzers/reach/target
+          key: cargo-lint-${{ matrix.os }}-${{ hashFiles('analyzers/reach/rust-toolchain.toml', 'analyzers/reach/Cargo.toml', 'analyzers/reach/Cargo.lock', 'analyzers/reach/src/**') }}
+          restore-keys: |
+            cargo-lint-${{ matrix.os }}-
+
       - name: Format
         run: cargo fmt --check
 
@@ -282,8 +294,10 @@ jobs:
       - name: Test
         run: cargo test --locked
 
+      # A debug build is enough here (the release build of this platform is made, smoke-tested and used by analyzer-build and reach-e2e);
+      # it costs a fraction of the optimized, link-time-optimized build.
       - name: Build
-        run: cargo build --release --locked
+        run: cargo build --locked
 
       # Contract test: real analyzer output against the protocol schemas, on a fixture project.
       - name: Protocol matches the schemas
@@ -306,7 +320,7 @@ jobs:
           json.dump(request, open("reach-request.json", "w", encoding="utf-8"))
           PY
           python3 -m check_jsonschema --schemafile schemas/reach-request.v1.schema.json reach-request.json
-          analyzers/reach/target/release/deprisk-reach < reach-request.json > reach-result.json
+          analyzers/reach/target/debug/deprisk-reach < reach-request.json > reach-result.json
           python3 -m check_jsonschema --schemafile schemas/reach-result.v1.schema.json reach-result.json
           python3 - <<'PY'
           import json
@@ -333,6 +347,18 @@ jobs:
         run: |
           rustup toolchain install
           rustup show active-toolchain
+
+      - name: Cache dependencies and build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            analyzers/reach/target
+          key: cargo-e2e-${{ runner.os }}-${{ hashFiles('analyzers/reach/rust-toolchain.toml', 'analyzers/reach/Cargo.toml', 'analyzers/reach/Cargo.lock', 'analyzers/reach/src/**') }}
+          restore-keys: |
+            cargo-e2e-${{ runner.os }}-
 
       - name: Build the analyzer
         run: cargo build --release --locked
@@ -700,6 +726,8 @@ jobs:
   # without --analyzer (ADR 0022). A platform that stops building, or a package that is not complete, is found here and not at release.
   analyzers:
     uses: ./.github/workflows/analyzer-build.yml
+    with:
+      cache: true
 
   package:
     needs: analyzers

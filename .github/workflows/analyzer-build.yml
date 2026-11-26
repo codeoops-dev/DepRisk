@@ -6,6 +6,11 @@ name: analyzer-build
 
 on:
   workflow_call:
+    inputs:
+      cache:
+        description: Reuse downloaded and compiled dependencies from earlier runs. ci.yml does; a release never does (it builds from scratch, ADR 0032)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -34,6 +39,19 @@ jobs:
         run: |
           rustup toolchain install
           rustup show active-toolchain
+
+      - name: Cache dependencies and build output (never in a release)
+        if: inputs.cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            analyzers/reach/target
+          key: cargo-${{ matrix.rid }}-${{ hashFiles('analyzers/reach/rust-toolchain.toml', 'analyzers/reach/Cargo.toml', 'analyzers/reach/Cargo.lock', 'analyzers/reach/src/**') }}
+          restore-keys: |
+            cargo-${{ matrix.rid }}-
 
       - name: Build (locked dependencies, release profile)
         working-directory: analyzers/reach
